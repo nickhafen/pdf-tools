@@ -65,14 +65,26 @@
 
     <!-- ACTIONS & SETTINGS -->
     <div class="header-actions">
-      <button class="btn btn-outline" id="btnLoadSample" title="Load demo contracts for quick testing">
-        <i data-lucide="sparkles"></i>
-        <span>Load Sample Demo</span>
-      </button>
+      <div class="split-button" id="sampleSplitButton">
+        <button class="btn btn-outline split-btn-main" id="btnLoadSample" title="Load the public sample contracts">
+          <i data-lucide="sparkles"></i>
+          <span>Load Sample Demo</span>
+        </button>
+        <button class="btn btn-outline split-btn-arrow" id="btnSampleDropdownToggle" title="Choose a demo document pair">
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <div class="split-dropdown-menu hidden" id="sampleDropdownMenu">
+          <div class="split-dropdown-header">Local Demo Documents</div>
+          <div class="split-dropdown-list" id="sampleDropdownList">
+            <div class="split-dropdown-empty">Loading...</div>
+          </div>
+          <div class="split-dropdown-footer">Add your own pairs to <code>test-documents/</code> named e.g. <code>mydoc-v1.pdf</code> / <code>mydoc-v2.pdf</code>. That folder stays local and is never committed to Git.</div>
+        </div>
+      </div>
 
-      <div class="ocr-status-badge" id="ocrBadge" title="Architecture supports modular OCR engines like Tesseract / Docling">
-        <i data-lucide="cpu"></i>
-        <span>Mode: Native PDF Stream</span>
+      <div class="ocr-status-badge" id="ocrBadge" title="Documents are parsed and compared entirely in your browser and never uploaded">
+        <i data-lucide="shield-check"></i>
+        <span>Stays in Your Browser</span>
       </div>
 
       <button class="btn btn-primary hidden" id="btnExportReport" title="Export Redline Report">

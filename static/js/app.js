@@ -32,6 +32,9 @@ document.addEventListener("DOMContentLoaded", () => {
   
   const btnRunCompare = document.getElementById("btnRunCompare");
   const btnLoadSample = document.getElementById("btnLoadSample");
+  const btnSampleDropdownToggle = document.getElementById("btnSampleDropdownToggle");
+  const sampleDropdownMenu = document.getElementById("sampleDropdownMenu");
+  const sampleDropdownList = document.getElementById("sampleDropdownList");
   const btnExportReport = document.getElementById("btnExportReport");
   const loadingOverlay = document.getElementById("loadingOverlay");
   const loadingStatusText = document.getElementById("loadingStatusText");
@@ -165,12 +168,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // SAMPLE DEMO LOADER
   // ==========================================================================
 
-  btnLoadSample.addEventListener("click", async () => {
+  btnLoadSample.addEventListener("click", () => {
+    loadSamplePair(
+      "/api/samples/contract_v1", "sample_contract_v1.pdf",
+      "/api/samples/contract_v2", "sample_contract_v2.pdf"
+    );
+  });
+
+  async function loadSamplePair(url1, name1, url2, name2) {
     try {
       showLoading("Fetching sample contract PDFs...");
-      
-      const res1 = await fetch("/api/samples/contract_v1");
-      const res2 = await fetch("/api/samples/contract_v2");
+
+      const res1 = await fetch(url1);
+      const res2 = await fetch(url2);
 
       if (!res1.ok || !res2.ok) {
         throw new Error("Could not retrieve sample PDFs.");
@@ -179,8 +189,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const blob1 = await res1.blob();
       const blob2 = await res2.blob();
 
-      state.fileV1 = new File([blob1], "sample_contract_v1.pdf", { type: "application/pdf" });
-      state.fileV2 = new File([blob2], "sample_contract_v2.pdf", { type: "application/pdf" });
+      state.fileV1 = new File([blob1], name1, { type: "application/pdf" });
+      state.fileV2 = new File([blob2], name2, { type: "application/pdf" });
 
       fileNameV1.textContent = state.fileV1.name;
       fileSizeV1.textContent = formatBytes(state.fileV1.size);
@@ -199,7 +209,62 @@ document.addEventListener("DOMContentLoaded", () => {
     } finally {
       hideLoading();
     }
-  });
+  }
+
+  // ==========================================================================
+  // SAMPLE DROPDOWN (local test-documents/ pairs)
+  // ==========================================================================
+
+  if (btnSampleDropdownToggle) {
+    btnSampleDropdownToggle.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const isHidden = sampleDropdownMenu.classList.contains("hidden");
+      if (isHidden) {
+        sampleDropdownMenu.classList.remove("hidden");
+        await populateSampleDropdown();
+      } else {
+        sampleDropdownMenu.classList.add("hidden");
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!sampleDropdownMenu.classList.contains("hidden") &&
+          !e.target.closest("#sampleSplitButton")) {
+        sampleDropdownMenu.classList.add("hidden");
+      }
+    });
+  }
+
+  async function populateSampleDropdown() {
+    sampleDropdownList.innerHTML = `<div class="split-dropdown-empty">Loading...</div>`;
+    try {
+      const res = await fetch("/api/samples/list");
+      if (!res.ok) throw new Error("Could not list local demo documents.");
+      const pairs = await res.json();
+
+      if (!pairs || pairs.length === 0) {
+        sampleDropdownList.innerHTML = `<div class="split-dropdown-empty">No demo pairs found in test-documents/</div>`;
+        return;
+      }
+
+      sampleDropdownList.innerHTML = "";
+      pairs.forEach(({ label }) => {
+        const item = document.createElement("button");
+        item.className = "split-dropdown-item";
+        item.textContent = label;
+        item.addEventListener("click", () => {
+          sampleDropdownMenu.classList.add("hidden");
+          loadSamplePair(
+            `/api/samples/testdoc/${encodeURIComponent(label)}/v1`, `${label}-v1.pdf`,
+            `/api/samples/testdoc/${encodeURIComponent(label)}/v2`, `${label}-v2.pdf`
+          );
+        });
+        sampleDropdownList.appendChild(item);
+      });
+    } catch (err) {
+      sampleDropdownList.innerHTML = `<div class="split-dropdown-empty">Error loading demo list.</div>`;
+    }
+  }
 
   // ==========================================================================
   // RUN COMPARISON
@@ -399,16 +464,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Remove glow from previous diffs
     document.querySelectorAll(".active-diff-glow").forEach(el => el.classList.remove("active-diff-glow"));
 
-    const targetEl = document.getElementById(targetNodeData.id);
-    if (targetEl) {
-      targetEl.classList.add("active-diff-glow");
+    const ids = targetNodeData.ids || [targetNodeData.id];
+    const targetEls = ids.map(id => document.getElementById(id)).filter(Boolean);
+    if (targetEls.length === 0) return;
 
-      // Scroll container directly
-      const container = document.getElementById("unifiedRedlineContent");
-      if (container && container.contains(targetEl)) {
-        const offsetTop = targetEl.offsetTop - container.offsetTop - 80;
-        container.scrollTo({ top: Math.max(0, offsetTop), behavior: "smooth" });
-      }
+    targetEls.forEach(el => el.classList.add("active-diff-glow"));
+
+    // Scroll container to the first element in the group
+    const container = document.getElementById("unifiedRedlineContent");
+    const firstEl = targetEls[0];
+    if (container && container.contains(firstEl)) {
+      const offsetTop = firstEl.offsetTop - container.offsetTop - 80;
+      container.scrollTo({ top: Math.max(0, offsetTop), behavior: "smooth" });
     }
   }
 
@@ -435,9 +502,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const searchVal = diffSearchInput.value.toLowerCase().trim();
 
     state.filteredDiffNodes = state.comparison.diffNodes.filter(node => {
+      // "replace" groups contain both a deletion and an insertion, so they
+      // match either filter.
       const matchesType = (filterVal === "all") ||
-        (filterVal === "insert" && node.type === "insert") ||
-        (filterVal === "delete" && node.type === "delete");
+        (filterVal === "insert" && (node.type === "insert" || node.type === "replace")) ||
+        (filterVal === "delete" && (node.type === "delete" || node.type === "replace"));
 
       const matchesQuery = !searchVal || node.text.toLowerCase().includes(searchVal);
 

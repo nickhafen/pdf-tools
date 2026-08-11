@@ -1,72 +1,80 @@
 /**
- * Diff Engine Service - Computes word-level diffs, redline HTML, and side-by-side alignment
+ * Diff Engine Service - Computes word-level diffs, redline HTML, and side-by-side alignment.
+ * Runs entirely client-side via the bundled diff-match-patch library.
  */
 
 class DiffEngine {
 
   /**
-   * Compare two PDF files or text strings
+   * Compare two PDF files' extracted text.
    */
   async compareDocuments(fileV1, fileV2, textV1, textV2) {
     textV1 = this._cleanText(textV1);
     textV2 = this._cleanText(textV2);
-    try {
-      const formData = new FormData();
-      if (textV1 && textV2) {
-        formData.append("text_v1", textV1);
-        formData.append("text_v2", textV2);
-      } else {
-        if (fileV1) formData.append("file_v1", fileV1);
-        if (fileV2) formData.append("file_v2", fileV2);
-      }
-
-      const response = await fetch("/api/compare", {
-        method: "POST",
-        body: formData
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        return this._processDiffResult(result, textV1 || "", textV2 || "");
-      } else {
-        const errText = await response.text();
-        console.warn(`Backend compare API returned HTTP ${response.status}: ${errText}`);
-      }
-    } catch (e) {
-      console.warn("Backend compare API failed, running client-side diff:", e);
-    }
-
-    // Client-side fallback using bundled diff_match_patch JS
     return this._compareClientSide(textV1 || "", textV2 || "");
   }
 
   /**
-   * Format raw API diff tokens into HTML and interactive navigation anchors
+   * Run diff-match-patch, then format raw diff tokens into HTML and interactive
+   * navigation anchors. Adjacent DELETE+INSERT pairs (a "replace") are grouped
+   * into a single navigable change, since they represent one edit, not two.
    */
   _processDiffResult(result, textV1, textV2) {
     let rawHtml = "";
-    let changeIndex = 0;
     let diffNodes = [];
+    let groupIndex = 0;
 
-    (result.diffs || []).forEach((token) => {
-      const escapedText = this._escapeHtml(token.text);
-      if (token.op === "EQUAL") {
-        rawHtml += escapedText;
-      } else if (token.op === "INSERT") {
-        changeIndex++;
-        const changeId = `diff-change-${changeIndex}`;
-        diffNodes.push({ id: changeId, type: "insert", text: token.text, index: changeIndex });
-        rawHtml += `<ins class="diff-ins" id="${changeId}" data-change-idx="${changeIndex}">${escapedText}</ins>`;
-      } else if (token.op === "DELETE") {
-        changeIndex++;
-        const changeId = `diff-change-${changeIndex}`;
-        diffNodes.push({ id: changeId, type: "delete", text: token.text, index: changeIndex });
-        rawHtml += `<del class="diff-del" id="${changeId}" data-change-idx="${changeIndex}">${escapedText}</del>`;
+    const diffs = result.diffs || [];
+    let i = 0;
+
+    const emit = (token, groupId, suffix) => {
+      const id = `diff-change-${groupId}${suffix}`;
+      const esc = this._escapeHtml(token.text);
+      if (token.op === "INSERT") {
+        rawHtml += `<ins class="diff-ins" id="${id}" data-group="${groupId}">${esc}</ins>`;
+      } else {
+        rawHtml += `<del class="diff-del" id="${id}" data-group="${groupId}">${esc}</del>`;
       }
-    });
+      return id;
+    };
+
+    while (i < diffs.length) {
+      const token = diffs[i];
+
+      if (token.op === "EQUAL") {
+        rawHtml += this._escapeHtml(token.text);
+        i++;
+        continue;
+      }
+
+      groupIndex++;
+      const ids = [];
+      const textParts = [];
+
+      ids.push(emit(token, groupIndex, "-a"));
+      textParts.push(token.text);
+      let type = token.op === "INSERT" ? "insert" : "delete";
+
+      const next = diffs[i + 1];
+      if (next && next.op !== "EQUAL" && next.op !== token.op) {
+        ids.push(emit(next, groupIndex, "-b"));
+        textParts.push(next.text);
+        type = "replace";
+        i += 2;
+      } else {
+        i += 1;
+      }
+
+      diffNodes.push({ ids, type, text: textParts.join(" "), index: groupIndex });
+    }
 
     result.redlineHtml = this._formatStructuredDocument(rawHtml);
     result.diffNodes = diffNodes;
+    // The navigable/reportable change count is the number of grouped edits,
+    // not the number of raw diff-match-patch tokens (which fragments a single
+    // word replacement into a delete + insert pair).
+    result.statistics = result.statistics || {};
+    result.statistics.changes_count = diffNodes.length;
     result.sideBySideData = this._generateSideBySideLines(textV1, textV2, result.diffs);
     return result;
   }
@@ -76,14 +84,14 @@ class DiffEngine {
    */
   _formatStructuredDocument(rawHtml) {
     if (!rawHtml) return "";
-    
+
     // Split by double newlines or blank lines into logical document blocks
     const blocks = rawHtml.split(/\n\s*\n/);
-    
+
     return blocks.map(block => {
       const trimmed = block.trim();
       if (!trimmed) return "";
-      
+
       // Strip HTML tags to inspect plain text for heading patterns
       const plainText = trimmed.replace(/<[^>]+>/g, "").trim();
       const isHeader = /^(?:[0-9]+(?:\.[0-9]+)*\s+[A-Z\s&"'\-]{3,}|[A-Z\s&"'\-]{4,}|Version\s+[0-9\.]+.*)$/.test(plainText) ||
@@ -138,7 +146,7 @@ class DiffEngine {
   }
 
   /**
-   * Client-side diff_match_patch fallback calculation
+   * Client-side diff_match_patch calculation
    */
   _compareClientSide(textV1, textV2) {
     const DMP = window.diff_match_patch || (typeof diff_match_patch !== "undefined" ? diff_match_patch : null);
@@ -158,13 +166,12 @@ class DiffEngine {
     let additionsWords = 0;
     let deletionsWords = 0;
     let unchangedWords = 0;
-    let changesCount = 0;
 
     tokens.forEach(t => {
       const cnt = t.text.trim().split(/\s+/).filter(Boolean).length;
       if (t.op === "EQUAL") unchangedWords += cnt;
-      else if (t.op === "INSERT") { additionsWords += cnt; changesCount++; }
-      else if (t.op === "DELETE") { deletionsWords += cnt; changesCount++; }
+      else if (t.op === "INSERT") additionsWords += cnt;
+      else if (t.op === "DELETE") deletionsWords += cnt;
     });
 
     const totalOpsWords = unchangedWords + additionsWords + deletionsWords;
@@ -173,7 +180,7 @@ class DiffEngine {
     const resultPayload = {
       statistics: {
         similarity_score: similarityScore,
-        changes_count: changesCount,
+        changes_count: 0, // computed from grouped diff nodes in _processDiffResult
         words_v1: textV1.trim().split(/\s+/).filter(Boolean).length,
         words_v2: textV2.trim().split(/\s+/).filter(Boolean).length,
         additions_words: additionsWords,
