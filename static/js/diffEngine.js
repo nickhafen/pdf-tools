@@ -80,30 +80,34 @@ class DiffEngine {
   }
 
   /**
-   * Format raw diff HTML into document section headings and paragraphs
+   * Format raw diff HTML into document blocks, using the explicit structure
+   * markers written by pdfEngine ("## Heading" lines, "---" page breaks)
+   * rather than guessing headings from arbitrary flattened text.
    */
   _formatStructuredDocument(rawHtml) {
     if (!rawHtml) return "";
 
-    // Split by double newlines or blank lines into logical document blocks
     const blocks = rawHtml.split(/\n\s*\n/);
 
     return blocks.map(block => {
       const trimmed = block.trim();
       if (!trimmed) return "";
 
-      // Strip HTML tags to inspect plain text for heading patterns
       const plainText = trimmed.replace(/<[^>]+>/g, "").trim();
-      const isHeader = /^(?:[0-9]+(?:\.[0-9]+)*\s+[A-Z\s&"'\-]{3,}|[A-Z\s&"'\-]{4,}|Version\s+[0-9\.]+.*)$/.test(plainText) ||
-                       (plainText.length < 70 && /^[0-9]+\.\s+[A-Z]/.test(plainText));
+
+      if (/^-{3,}$/.test(plainText)) {
+        return `<hr class="redline-pagebreak">`;
+      }
+
+      if (/^##\s?/.test(plainText)) {
+        // Strip the leading "## " marker while preserving any diff tags
+        // that wrap it (e.g. a brand-new heading added in v2).
+        const headingHtml = trimmed.replace(/^(\s*(?:<[^>]+>)*\s*)##\s?/, "$1");
+        return `<h3 class="redline-heading">${headingHtml}</h3>`;
+      }
 
       const formattedLines = block.split('\n').join('<br>');
-
-      if (isHeader) {
-        return `<h3 class="redline-heading">${formattedLines}</h3>`;
-      } else {
-        return `<p class="redline-paragraph">${formattedLines}</p>`;
-      }
+      return `<p class="redline-paragraph">${formattedLines}</p>`;
     }).join('');
   }
 
@@ -126,8 +130,14 @@ class DiffEngine {
       }
     });
 
-    const leftLines = leftRaw.split('\n');
-    const rightLines = rightRaw.split('\n');
+    const cleanupMarkers = (line) => {
+      const plain = line.replace(/<[^>]+>/g, "").trim();
+      if (/^-{3,}$/.test(plain)) return "— Page Break —";
+      return line.replace(/^(\s*(?:<[^>]+>)*\s*)##\s?/, "$1");
+    };
+
+    const leftLines = leftRaw.split('\n').map(cleanupMarkers);
+    const rightLines = rightRaw.split('\n').map(cleanupMarkers);
 
     const maxLines = Math.max(leftLines.length, rightLines.length);
     let leftHtml = "";
@@ -146,7 +156,16 @@ class DiffEngine {
   }
 
   /**
-   * Client-side diff_match_patch calculation
+   * Client-side diff-match-patch calculation, diffed at word granularity.
+   *
+   * diff-match-patch's diff_main operates on raw characters, which fragments
+   * a single word replacement (e.g. "January" -> "February") into
+   * mid-word insert/delete tokens and skews word counts. We work around this
+   * with the same technique DMP itself uses for line-mode diffing: tokenize
+   * both texts into words/whitespace runs, map each unique token to one
+   * synthetic character, diff those character strings, then map the result
+   * back to whole tokens. Every diff chunk is then a whole word (or run of
+   * whitespace), never a fragment of one.
    */
   _compareClientSide(textV1, textV2) {
     const DMP = window.diff_match_patch || (typeof diff_match_patch !== "undefined" ? diff_match_patch : null);
@@ -155,11 +174,16 @@ class DiffEngine {
     }
 
     const dmp = new DMP();
-    const rawDiffs = dmp.diff_main(textV1, textV2);
+    const { chars1, chars2, tokenArray } = this._tokensToChars(textV1, textV2);
+    const rawDiffs = dmp.diff_main(chars1, chars2, false);
     dmp.diff_cleanupSemantic(rawDiffs);
 
-    const tokens = rawDiffs.map(([op, text]) => {
+    const tokens = rawDiffs.map(([op, chars]) => {
       const type = op === 0 ? "EQUAL" : op === 1 ? "INSERT" : "DELETE";
+      let text = "";
+      for (let i = 0; i < chars.length; i++) {
+        text += tokenArray[chars.charCodeAt(i)];
+      }
       return { op: type, text };
     });
 
@@ -191,6 +215,36 @@ class DiffEngine {
     };
 
     return this._processDiffResult(resultPayload, textV1, textV2);
+  }
+
+  /**
+   * Tokenize two texts into words and whitespace runs, and encode each text
+   * as a string of synthetic characters (one per unique token) so
+   * diff-match-patch's character-level diff_main effectively becomes a
+   * word-level diff. Mirrors DMP's own diff_linesToChars_ pattern.
+   */
+  _tokensToChars(text1, text2) {
+    const tokenArray = [];
+    const tokenHash = {};
+
+    const tokenize = (text) => {
+      const tokens = text.match(/\S+|\s+/g) || [];
+      let chars = "";
+      tokens.forEach(tok => {
+        let code = tokenHash[tok];
+        if (code === undefined) {
+          tokenArray.push(tok);
+          code = tokenArray.length - 1;
+          tokenHash[tok] = code;
+        }
+        chars += String.fromCharCode(code);
+      });
+      return chars;
+    };
+
+    const chars1 = tokenize(text1);
+    const chars2 = tokenize(text2);
+    return { chars1, chars2, tokenArray };
   }
 
   _cleanText(text) {

@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDF Redline & Document Comparison Suite</title>
   <meta name="description" content="Professional PDF text extraction, legal redlining, side-by-side comparison, and change tracking suite.">
-  
+
   <!-- Google Fonts: Inter & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  
+
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  
+
   <!-- PDF.js CDN (Client-side fallback) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
@@ -30,7 +30,7 @@
 </head>
 <body class="dark-theme">
 
-  <!-- TOP APP HEADER -->
+  <!-- STICKY TOP MENU: ROW 1 (brand + primary actions) -->
   <header class="app-header">
     <div class="header-brand">
       <div class="brand-icon">
@@ -42,28 +42,6 @@
       </div>
     </div>
 
-    <!-- METRICS DASHBOARD (Hidden until comparison loaded) -->
-    <div class="header-metrics hidden" id="headerMetrics">
-      <div class="metric-card similarity">
-        <span class="metric-label">Match Score</span>
-        <span class="metric-value" id="metricSimilarity">--%</span>
-      </div>
-      <div class="metric-divider"></div>
-      <div class="metric-card additions">
-        <span class="metric-label">Added Words</span>
-        <span class="metric-value" id="metricAdditions">+0</span>
-      </div>
-      <div class="metric-card deletions">
-        <span class="metric-label">Deleted Words</span>
-        <span class="metric-value" id="metricDeletions">-0</span>
-      </div>
-      <div class="metric-card changes">
-        <span class="metric-label">Total Diffs</span>
-        <span class="metric-value" id="metricChanges">0</span>
-      </div>
-    </div>
-
-    <!-- ACTIONS & SETTINGS -->
     <div class="header-actions">
       <div class="split-button" id="sampleSplitButton">
         <button class="btn btn-outline split-btn-main" id="btnLoadSample" title="Load the public sample contracts">
@@ -82,10 +60,15 @@
         </div>
       </div>
 
-      <div class="ocr-status-badge" id="ocrBadge" title="Documents are parsed and compared entirely in your browser and never uploaded">
-        <i data-lucide="shield-check"></i>
-        <span>Stays in Your Browser</span>
-      </div>
+      <button class="btn btn-outline hidden" id="btnShowStats" title="View comparison statistics">
+        <i data-lucide="bar-chart-3"></i>
+        <span>Stats</span>
+      </button>
+
+      <button class="btn btn-outline" id="btnShowHelp" title="How to use this tool, privacy, and limitations">
+        <i data-lucide="shield-question"></i>
+        <span>Privacy & Help</span>
+      </button>
 
       <button class="btn btn-primary hidden" id="btnExportReport" title="Export Redline Report">
         <i data-lucide="download"></i>
@@ -94,50 +77,69 @@
     </div>
   </header>
 
+  <!-- STICKY TOP MENU: ROW 2 (view controls, shown once a comparison exists) -->
+  <section class="app-toolbar hidden" id="appToolbar">
+    <div class="segmented-control" id="viewModeControl">
+      <button class="segment-btn active" data-view="unified">
+        <i data-lucide="file-text"></i>
+        <span>Unified Redline</span>
+      </button>
+      <button class="segment-btn" data-view="sidebyside">
+        <i data-lucide="columns-2"></i>
+        <span>Synchronized Side-by-Side</span>
+      </button>
+    </div>
+
+    <!-- DIFF NAVIGATOR & SEARCH -->
+    <div class="diff-navigator hidden" id="diffNavigator">
+      <div class="nav-button-group">
+        <button class="btn-icon" id="btnPrevDiff" title="Previous Change (Shift+K)">
+          <i data-lucide="chevron-left"></i>
+        </button>
+        <span class="nav-counter" id="diffCounter">Change 0 of 0</span>
+        <button class="btn-icon" id="btnNextDiff" title="Next Change (Shift+J)">
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+
+      <div class="nav-filter">
+        <i data-lucide="filter" class="filter-icon"></i>
+        <select id="diffFilterSelect">
+          <option value="all">All Differences</option>
+          <option value="insert">Additions Only (+)</option>
+          <option value="delete">Deletions Only (-)</option>
+        </select>
+      </div>
+
+      <div class="nav-search">
+        <i data-lucide="search"></i>
+        <input type="text" id="diffSearchInput" placeholder="Filter diffs by keyword...">
+      </div>
+    </div>
+
+    <!-- SIDE-BY-SIDE SUB-TOGGLE (only shown while the Side-by-Side view is active) -->
+    <div class="sub-segmented-control hidden" id="sideBySideSubToggle">
+      <button class="sub-segment-btn active" data-subview="text">
+        <i data-lucide="align-left"></i>
+        <span>Formatted Text</span>
+      </button>
+      <button class="sub-segment-btn" data-subview="pdf">
+        <i data-lucide="file-type-2"></i>
+        <span>PDF Canvas View</span>
+      </button>
+    </div>
+
+    <!-- CANVAS PAGE SELECTOR (Only shown in PDF View) -->
+    <div class="page-selector hidden" id="canvasPageNav">
+      <span>Page:</span>
+      <button class="btn-icon" id="btnPagePrev"><i data-lucide="chevron-left"></i></button>
+      <span id="visualPageNum">1 / 1</span>
+      <button class="btn-icon" id="btnPageNext"><i data-lucide="chevron-right"></i></button>
+    </div>
+  </section>
+
   <!-- MAIN CONTAINER -->
   <main class="app-main">
-
-    <!-- TOOLBAR / CONTROLS PANEL -->
-    <section class="controls-toolbar">
-      <!-- VIEW MODES (2 MAIN OPTIONS) -->
-      <div class="segmented-control" id="viewModeControl">
-        <button class="segment-btn active" data-view="unified">
-          <i data-lucide="file-text"></i>
-          <span>Unified Redline</span>
-        </button>
-        <button class="segment-btn" data-view="sidebyside">
-          <i data-lucide="columns-2"></i>
-          <span>Synchronized Side-by-Side</span>
-        </button>
-      </div>
-
-      <!-- DIFF NAVIGATOR & SEARCH -->
-      <div class="diff-navigator hidden" id="diffNavigator">
-        <div class="nav-button-group">
-          <button class="btn-icon" id="btnPrevDiff" title="Previous Change (Shift+K)">
-            <i data-lucide="chevron-left"></i>
-          </button>
-          <span class="nav-counter" id="diffCounter">Change 0 of 0</span>
-          <button class="btn-icon" id="btnNextDiff" title="Next Change (Shift+J)">
-            <i data-lucide="chevron-right"></i>
-          </button>
-        </div>
-
-        <div class="nav-filter">
-          <i data-lucide="filter" class="filter-icon"></i>
-          <select id="diffFilterSelect">
-            <option value="all">All Differences</option>
-            <option value="insert">Additions Only (+)</option>
-            <option value="delete">Deletions Only (-)</option>
-          </select>
-        </div>
-
-        <div class="nav-search">
-          <i data-lucide="search"></i>
-          <input type="text" id="diffSearchInput" placeholder="Filter diffs by keyword...">
-        </div>
-      </div>
-    </section>
 
     <!-- UPLOAD DROPZONE AREA -->
     <section class="upload-section" id="uploadSection">
@@ -234,30 +236,8 @@
         </div>
       </div>
 
-      <!-- VIEW MODE 2: SYNCHRONIZED SIDE-BY-SIDE (WITH SUB-TOGGLE) -->
+      <!-- VIEW MODE 2: SYNCHRONIZED SIDE-BY-SIDE -->
       <div class="view-panel" id="viewSideBySide">
-        
-        <!-- SUB-TOGGLE TOOLBAR -->
-        <div class="side-sub-header">
-          <div class="sub-segmented-control" id="sideBySideSubToggle">
-            <button class="sub-segment-btn active" data-subview="text">
-              <i data-lucide="align-left"></i>
-              <span>Formatted Text</span>
-            </button>
-            <button class="sub-segment-btn" data-subview="pdf">
-              <i data-lucide="file-type-2"></i>
-              <span>PDF Canvas View</span>
-            </button>
-          </div>
-
-          <!-- CANVAS PAGE SELECTOR (Only shown in PDF View) -->
-          <div class="page-selector hidden" id="canvasPageNav">
-            <span>Page:</span>
-            <button class="btn-icon" id="btnPagePrev"><i data-lucide="chevron-left"></i></button>
-            <span id="visualPageNum">1 / 1</span>
-            <button class="btn-icon" id="btnPageNext"><i data-lucide="chevron-right"></i></button>
-          </div>
-        </div>
 
         <!-- SUB VIEW A: FORMATTED TEXT SIDE BY SIDE -->
         <div class="side-by-side-grid" id="sideTextGrid">
@@ -308,6 +288,11 @@
 
   </main>
 
+  <!-- JUMP TO TOP -->
+  <button class="jump-top-btn hidden" id="btnJumpTop" title="Jump to top">
+    <i data-lucide="arrow-up"></i>
+  </button>
+
   <!-- EXPORT MODAL -->
   <div class="modal-backdrop hidden" id="exportModal">
     <div class="modal-card">
@@ -341,6 +326,74 @@
               <p>Copies tracked changes markdown/text to your clipboard.</p>
             </div>
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS MODAL -->
+  <div class="modal-backdrop hidden" id="statsModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i data-lucide="bar-chart-3"></i> Comparison Statistics</h3>
+        <button class="btn-icon" id="btnCloseStatsModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="stats-grid">
+          <div class="stat-tile similarity">
+            <span class="stat-tile-label">Match Score</span>
+            <span class="stat-tile-value" id="metricSimilarity">--%</span>
+          </div>
+          <div class="stat-tile changes">
+            <span class="stat-tile-label">Total Diffs</span>
+            <span class="stat-tile-value" id="metricChanges">0</span>
+          </div>
+          <div class="stat-tile additions">
+            <span class="stat-tile-label">Added Words</span>
+            <span class="stat-tile-value" id="metricAdditions">+0</span>
+          </div>
+          <div class="stat-tile deletions">
+            <span class="stat-tile-label">Deleted Words</span>
+            <span class="stat-tile-value" id="metricDeletions">-0</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-label">Words in v1</span>
+            <span class="stat-tile-value" id="metricWordsV1">0</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-label">Words in v2</span>
+            <span class="stat-tile-value" id="metricWordsV2">0</span>
+          </div>
+        </div>
+        <p class="stats-caveat">Word counts and match score are computed from extracted text and grouped word-level diffs. Treat them as a useful estimate, not an exact legal accounting of changes — see Privacy & Help for limitations.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- HELP / PRIVACY MODAL -->
+  <div class="modal-backdrop hidden" id="helpModal">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3><i data-lucide="shield-question"></i> Privacy & Help</h3>
+        <button class="btn-icon" id="btnCloseHelpModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="help-section">
+          <h4><i data-lucide="mouse-pointer-click"></i> How to use it</h4>
+          <p>Upload an original PDF (v1) and a revised PDF (v2), or click <strong>Load Sample Demo</strong> to try it with example contracts. Click <strong>Generate Redline Comparison</strong> to see tracked changes. Use <strong>Unified Redline</strong> for a single marked-up document, or <strong>Synchronized Side-by-Side</strong> to view both versions next to each other as formatted text or rendered PDF pages. Use the change navigator (&lt; / &gt;, or Shift+J / Shift+K) to jump between edits, and the filter/search box to narrow down what you're looking at.</p>
+        </div>
+        <div class="help-section">
+          <h4><i data-lucide="lock"></i> Privacy</h4>
+          <p>Both PDFs are parsed and compared entirely inside your browser using PDF.js and diff-match-patch. Your documents are never uploaded to a server — the app makes no network request containing your document content. The only server calls this tool makes are to load its own static files and (optionally) the small demo sample PDFs.</p>
+        </div>
+        <div class="help-section">
+          <h4><i data-lucide="triangle-alert"></i> Limitations</h4>
+          <ul>
+            <li>Text extraction quality depends on how the PDF was produced. Scanned/image-only PDFs contain no extractable text yet — OCR support is on the roadmap.</li>
+            <li>Heading and paragraph detection is inferred from font size and layout, and can misfire on unusual formatting (multi-column layouts, heavy custom styling, tables).</li>
+            <li>The <strong>PDF Canvas View</strong> highlight overlay is an approximate, word-matching visual aid — it is not a precise mapping of every diff and should not be relied on as the definitive record of changes. Use the Unified Redline view for that.</li>
+            <li>Statistics (match score, added/deleted words) are computed from word-level text diffing and are a useful estimate, not a certified legal redline count.</li>
+          </ul>
         </div>
       </div>
     </div>

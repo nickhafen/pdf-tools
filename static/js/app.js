@@ -39,11 +39,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadingOverlay = document.getElementById("loadingOverlay");
   const loadingStatusText = document.getElementById("loadingStatusText");
 
-  const headerMetrics = document.getElementById("headerMetrics");
+  const appToolbar = document.getElementById("appToolbar");
+  const btnShowStats = document.getElementById("btnShowStats");
   const metricSimilarity = document.getElementById("metricSimilarity");
   const metricAdditions = document.getElementById("metricAdditions");
   const metricDeletions = document.getElementById("metricDeletions");
   const metricChanges = document.getElementById("metricChanges");
+  const metricWordsV1 = document.getElementById("metricWordsV1");
+  const metricWordsV2 = document.getElementById("metricWordsV2");
 
   const uploadSection = document.getElementById("uploadSection");
   const resultsSection = document.getElementById("resultsSection");
@@ -68,6 +71,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnExportHTML = document.getElementById("btnExportHTML");
   const btnExportPrint = document.getElementById("btnExportPrint");
   const btnCopyText = document.getElementById("btnCopyText");
+
+  // Stats & Help Modal Elements
+  const statsModal = document.getElementById("statsModal");
+  const btnCloseStatsModal = document.getElementById("btnCloseStatsModal");
+  const helpModal = document.getElementById("helpModal");
+  const btnShowHelp = document.getElementById("btnShowHelp");
+  const btnCloseHelpModal = document.getElementById("btnCloseHelpModal");
+
+  const btnJumpTop = document.getElementById("btnJumpTop");
 
   // Initialize Lucide Icons
   if (window.lucide) {
@@ -309,13 +321,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const comp = state.comparison;
     const stats = comp.statistics || {};
 
-    // 1. Update Header Metrics
+    // 1. Update Stats (shown on demand via the Stats modal)
     metricSimilarity.textContent = `${stats.similarity_score}%`;
     metricAdditions.textContent = `+${stats.additions_words}`;
     metricDeletions.textContent = `-${stats.deletions_words}`;
     metricChanges.textContent = stats.changes_count;
+    metricWordsV1.textContent = stats.words_v1 ?? 0;
+    metricWordsV2.textContent = stats.words_v2 ?? 0;
 
-    headerMetrics.classList.remove("hidden");
+    appToolbar.classList.remove("hidden");
+    btnShowStats.classList.remove("hidden");
     btnExportReport.classList.remove("hidden");
     diffNavigator.classList.remove("hidden");
 
@@ -377,6 +392,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // VIEW MODE SWITCHER & SUB-TOGGLE
   // ==========================================================================
 
+  // Sub-Toggle: Formatted Text vs PDF Canvas View (declared here so the view
+  // switcher below can show/hide it based on the active main view)
+  const sideBySideSubToggle = document.getElementById("sideBySideSubToggle");
+  const sideTextGrid = document.getElementById("sideTextGrid");
+  const sidePdfGrid = document.getElementById("sidePdfGrid");
+  const canvasPageNav = document.getElementById("canvasPageNav");
+
   // Main 2 View Controls: Unified Redline vs Side-by-Side
   viewModeControl.addEventListener("click", (e) => {
     const btn = e.target.closest(".segment-btn");
@@ -392,16 +414,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (viewName === "unified") {
       document.getElementById("viewUnified").classList.add("active");
+      sideBySideSubToggle.classList.add("hidden");
+      canvasPageNav.classList.add("hidden");
     } else if (viewName === "sidebyside") {
       document.getElementById("viewSideBySide").classList.add("active");
+      sideBySideSubToggle.classList.remove("hidden");
+      // Only show the page selector if the PDF Canvas sub-view is active
+      if (sideBySideSubToggle.querySelector('.sub-segment-btn[data-subview="pdf"]').classList.contains("active")) {
+        canvasPageNav.classList.remove("hidden");
+      }
     }
   });
-
-  // Sub-Toggle inside Side-by-Side: Formatted Text vs PDF Canvas View
-  const sideBySideSubToggle = document.getElementById("sideBySideSubToggle");
-  const sideTextGrid = document.getElementById("sideTextGrid");
-  const sidePdfGrid = document.getElementById("sidePdfGrid");
-  const canvasPageNav = document.getElementById("canvasPageNav");
 
   if (sideBySideSubToggle) {
     sideBySideSubToggle.addEventListener("click", (e) => {
@@ -670,6 +693,42 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Plaintext redline copied to clipboard!");
     }
     exportModal.classList.add("hidden");
+  });
+
+  // ==========================================================================
+  // STATS MODAL
+  // ==========================================================================
+
+  btnShowStats.addEventListener("click", () => statsModal.classList.remove("hidden"));
+  btnCloseStatsModal.addEventListener("click", () => statsModal.classList.add("hidden"));
+  statsModal.addEventListener("click", (e) => {
+    if (e.target === statsModal) statsModal.classList.add("hidden");
+  });
+
+  // ==========================================================================
+  // PRIVACY & HELP MODAL
+  // ==========================================================================
+
+  btnShowHelp.addEventListener("click", () => helpModal.classList.remove("hidden"));
+  btnCloseHelpModal.addEventListener("click", () => helpModal.classList.add("hidden"));
+  helpModal.addEventListener("click", (e) => {
+    if (e.target === helpModal) helpModal.classList.add("hidden");
+  });
+
+  // ==========================================================================
+  // JUMP TO TOP
+  // ==========================================================================
+
+  window.addEventListener("scroll", () => {
+    if (window.scrollY > 320) {
+      btnJumpTop.classList.remove("hidden");
+    } else {
+      btnJumpTop.classList.add("hidden");
+    }
+  });
+
+  btnJumpTop.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   // Helpers
