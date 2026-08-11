@@ -19,7 +19,7 @@ class DiffEngine {
    * navigation anchors. Adjacent DELETE+INSERT pairs (a "replace") are grouped
    * into a single navigable change, since they represent one edit, not two.
    */
-  _processDiffResult(result, textV1, textV2) {
+  _processDiffResult(result) {
     let rawHtml = "";
     let diffNodes = [];
     let groupIndex = 0;
@@ -68,6 +68,7 @@ class DiffEngine {
       diffNodes.push({ ids, type, text: textParts.join(" "), index: groupIndex });
     }
 
+    result.redlineRawHtml = rawHtml;
     result.redlineHtml = this._formatStructuredDocument(rawHtml);
     result.diffNodes = diffNodes;
     // The navigable/reportable change count is the number of grouped edits,
@@ -75,7 +76,6 @@ class DiffEngine {
     // word replacement into a delete + insert pair).
     result.statistics = result.statistics || {};
     result.statistics.changes_count = diffNodes.length;
-    result.sideBySideData = this._generateSideBySideLines(textV1, textV2, result.diffs);
     return result;
   }
 
@@ -112,47 +112,41 @@ class DiffEngine {
   }
 
   /**
-   * Generate side-by-side aligned lines with redline highlights (Deletions on Left, Additions on Right)
+   * Escape a raw text string (e.g. state.docV1Data.full_text) for display.
+   * Public helper used by the side-by-side pane renderer.
    */
-  _generateSideBySideLines(textV1, textV2, diffs) {
-    let leftRaw = "";
-    let rightRaw = "";
+  escapeForView(text) {
+    return this._escapeHtml(text || "");
+  }
 
-    (diffs || []).forEach(token => {
-      const textEsc = this._escapeHtml(token.text);
-      if (token.op === "EQUAL") {
-        leftRaw += textEsc;
-        rightRaw += textEsc;
-      } else if (token.op === "DELETE") {
-        leftRaw += `<del class="diff-del">${textEsc}</del>`;
-      } else if (token.op === "INSERT") {
-        rightRaw += `<ins class="diff-ins">${textEsc}</ins>`;
+  /**
+   * Render escaped HTML (optionally containing <ins>/<del> diff tags) as
+   * headings/paragraphs/page-breaks using the "## " / "---" structure
+   * markers. Public wrapper around _formatStructuredDocument for use by any
+   * pane (v1-only, v2-only, or redline).
+   */
+  formatFormattedView(escapedHtml) {
+    return this._formatStructuredDocument(escapedHtml);
+  }
+
+  /**
+   * Render escaped HTML as flat, line-broken plain text: structure markers
+   * are stripped/humanized but no heading/paragraph semantic wrapping is
+   * applied. Diff tags (<ins>/<del>), if present, are preserved as-is.
+   */
+  formatPlainView(escapedHtml) {
+    if (!escapedHtml) return "";
+
+    return escapedHtml.split('\n').map(line => {
+      const plainText = line.replace(/<[^>]+>/g, "").trim();
+
+      if (/^-{3,}$/.test(plainText)) {
+        return `<div class="plain-pagebreak">— Page Break —</div>`;
       }
-    });
 
-    const cleanupMarkers = (line) => {
-      const plain = line.replace(/<[^>]+>/g, "").trim();
-      if (/^-{3,}$/.test(plain)) return "— Page Break —";
-      return line.replace(/^(\s*(?:<[^>]+>)*\s*)##\s?/, "$1");
-    };
-
-    const leftLines = leftRaw.split('\n').map(cleanupMarkers);
-    const rightLines = rightRaw.split('\n').map(cleanupMarkers);
-
-    const maxLines = Math.max(leftLines.length, rightLines.length);
-    let leftHtml = "";
-    let rightHtml = "";
-
-    for (let i = 0; i < maxLines; i++) {
-      const lineNum = i + 1;
-      const lContent = leftLines[i] !== undefined ? leftLines[i] : "";
-      const rContent = rightLines[i] !== undefined ? rightLines[i] : "";
-
-      leftHtml += `<div class="side-line" data-line="${lineNum}"><span class="line-num">${lineNum}</span><span class="line-content">${lContent || '&nbsp;'}</span></div>`;
-      rightHtml += `<div class="side-line" data-line="${lineNum}"><span class="line-num">${lineNum}</span><span class="line-content">${rContent || '&nbsp;'}</span></div>`;
-    }
-
-    return { leftHtml, rightHtml };
+      const stripped = line.replace(/^(\s*(?:<[^>]+>)*\s*)##\s?/, "$1");
+      return stripped.trim() ? `<div class="plain-line">${stripped}</div>` : `<div class="plain-line">&nbsp;</div>`;
+    }).join('');
   }
 
   /**
@@ -214,7 +208,7 @@ class DiffEngine {
       diffs: tokens
     };
 
-    return this._processDiffResult(resultPayload, textV1, textV2);
+    return this._processDiffResult(resultPayload);
   }
 
   /**

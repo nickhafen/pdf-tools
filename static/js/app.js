@@ -13,7 +13,13 @@ document.addEventListener("DOMContentLoaded", () => {
     activeView: "unified",
     currentDiffIndex: 0,
     filteredDiffNodes: [],
-    currentVisualPage: 1
+    // Each side-by-side pane is independently configurable: what to show
+    // (v1 / v2 / redline) and how (formatted text / plain text / PDF canvas).
+    panes: {
+      left: { content: "v1", display: "formatted", page: 1 },
+      right: { content: "v2", display: "formatted", page: 1 }
+    },
+    pdfDocCache: {} // { v1: pdfjsDocument, v2: pdfjsDocument } to avoid re-parsing on every pane change
   };
 
   // DOM Elements
@@ -54,10 +60,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const viewModeControl = document.getElementById("viewModeControl");
   const unifiedRedlineContent = document.getElementById("unifiedRedlineContent");
-  const contentLeft = document.getElementById("contentLeft");
-  const contentRight = document.getElementById("contentRight");
-  const paneTitleV1 = document.getElementById("paneTitleV1");
-  const paneTitleV2 = document.getElementById("paneTitleV2");
+  const contentLeft = document.getElementById("content-left");
+  const contentRight = document.getElementById("content-right");
 
   const btnPrevDiff = document.getElementById("btnPrevDiff");
   const btnNextDiff = document.getElementById("btnNextDiff");
@@ -337,11 +341,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // 2. Render Unified Redline Content
     unifiedRedlineContent.innerHTML = comp.redlineHtml || "<p>No differences found.</p>";
 
-    // 3. Render Side-by-Side Content
-    paneTitleV1.textContent = state.fileV1 ? state.fileV1.name : "Original (v1)";
-    paneTitleV2.textContent = state.fileV2 ? state.fileV2.name : "Revised (v2)";
-    contentLeft.innerHTML = comp.sideBySideData ? comp.sideBySideData.leftHtml : "";
-    contentRight.innerHTML = comp.sideBySideData ? comp.sideBySideData.rightHtml : "";
+    // 3. Render Side-by-Side Panes (each independently configurable)
+    state.pdfDocCache = {};
+    renderPane("left");
+    renderPane("right");
 
     // Synchronize Side-by-Side Scrolling
     setupSynchronizedScroll();
@@ -354,11 +357,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // 5. Show Results View Panel
     resultsSection.classList.remove("hidden");
     uploadSection.classList.add("hidden");
-
-    // Render Visual Canvases if active
-    if (state.activeView === "visual") {
-      renderVisualCanvases();
-    }
   }
 
   // ==========================================================================
@@ -389,15 +387,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================================================
-  // VIEW MODE SWITCHER & SUB-TOGGLE
+  // VIEW MODE SWITCHER
   // ==========================================================================
-
-  // Sub-Toggle: Formatted Text vs PDF Canvas View (declared here so the view
-  // switcher below can show/hide it based on the active main view)
-  const sideBySideSubToggle = document.getElementById("sideBySideSubToggle");
-  const sideTextGrid = document.getElementById("sideTextGrid");
-  const sidePdfGrid = document.getElementById("sidePdfGrid");
-  const canvasPageNav = document.getElementById("canvasPageNav");
 
   // Main 2 View Controls: Unified Redline vs Side-by-Side
   viewModeControl.addEventListener("click", (e) => {
@@ -414,39 +405,184 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (viewName === "unified") {
       document.getElementById("viewUnified").classList.add("active");
-      sideBySideSubToggle.classList.add("hidden");
-      canvasPageNav.classList.add("hidden");
     } else if (viewName === "sidebyside") {
       document.getElementById("viewSideBySide").classList.add("active");
-      sideBySideSubToggle.classList.remove("hidden");
-      // Only show the page selector if the PDF Canvas sub-view is active
-      if (sideBySideSubToggle.querySelector('.sub-segment-btn[data-subview="pdf"]').classList.contains("active")) {
-        canvasPageNav.classList.remove("hidden");
-      }
     }
   });
 
-  if (sideBySideSubToggle) {
-    sideBySideSubToggle.addEventListener("click", (e) => {
-      const btn = e.target.closest(".sub-segment-btn");
-      if (!btn) return;
+  // ==========================================================================
+  // SIDE-BY-SIDE PANE CONTROLS (content: v1/v2/redline, display: formatted/plain/pdf)
+  // ==========================================================================
 
-      sideBySideSubToggle.querySelectorAll(".sub-segment-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
+  document.querySelectorAll(".pane-content-select").forEach(select => {
+    select.addEventListener("change", (e) => {
+      const side = e.target.dataset.pane;
+      state.panes[side].content = e.target.value;
+      updatePaneOptionAvailability(side);
+      renderPane(side);
+    });
+  });
 
-      const subView = btn.dataset.subview;
+  document.querySelectorAll(".pane-display-select").forEach(select => {
+    select.addEventListener("change", (e) => {
+      const side = e.target.dataset.pane;
+      state.panes[side].display = e.target.value;
+      renderPane(side);
+    });
+  });
 
-      if (subView === "text") {
-        sideTextGrid.classList.remove("hidden");
-        sidePdfGrid.classList.add("hidden");
-        canvasPageNav.classList.add("hidden");
-      } else if (subView === "pdf") {
-        sideTextGrid.classList.add("hidden");
-        sidePdfGrid.classList.remove("hidden");
-        canvasPageNav.classList.remove("hidden");
-        renderVisualCanvases();
+  document.querySelectorAll(".pane-page-prev").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const side = e.target.closest("[data-pane]").dataset.pane;
+      if (state.panes[side].page > 1) {
+        state.panes[side].page--;
+        renderPane(side);
       }
     });
+  });
+
+  document.querySelectorAll(".pane-page-next").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const side = e.target.closest("[data-pane]").dataset.pane;
+      state.panes[side].page++;
+      renderPane(side);
+    });
+  });
+
+  // A PDF Canvas view only makes sense for an actual PDF (v1/v2), not a
+  // redline markup, so disable that option while "Redline" is selected.
+  function updatePaneOptionAvailability(side) {
+    const displaySelect = document.querySelector(`.pane-display-select[data-pane="${side}"]`);
+    const pdfOption = displaySelect.querySelector('option[value="pdf"]');
+    const isRedline = state.panes[side].content === "redline";
+
+    pdfOption.disabled = isRedline;
+    if (isRedline && state.panes[side].display === "pdf") {
+      state.panes[side].display = "formatted";
+      displaySelect.value = "formatted";
+    }
+  }
+
+  function renderPane(side) {
+    const config = state.panes[side];
+    const paneEl = document.querySelector(`.side-pane[data-pane="${side}"]`);
+    const textEl = document.getElementById(`content-${side}`);
+    const canvasWrapper = paneEl.querySelector(".pane-canvas-wrapper");
+    const pageNav = paneEl.querySelector(".pane-page-nav");
+    const pageBadge = document.getElementById(`panePageCount-${side}`);
+
+    if (config.display === "pdf") {
+      textEl.classList.add("hidden");
+      canvasWrapper.classList.remove("hidden");
+      pageNav.classList.remove("hidden");
+      renderPaneCanvas(side);
+      return;
+    }
+
+    canvasWrapper.classList.add("hidden");
+    pageNav.classList.add("hidden");
+    textEl.classList.remove("hidden");
+
+    let escapedHtml;
+    let pageLabel = "";
+
+    if (config.content === "redline") {
+      escapedHtml = state.comparison ? state.comparison.redlineRawHtml : "";
+      pageLabel = "redline";
+    } else {
+      const docData = config.content === "v1" ? state.docV1Data : state.docV2Data;
+      escapedHtml = window.diffEngine.escapeForView(docData ? docData.full_text : "");
+      pageLabel = docData ? `${docData.page_count} page${docData.page_count === 1 ? "" : "s"}` : "-- pages";
+    }
+
+    textEl.innerHTML = config.display === "plain"
+      ? window.diffEngine.formatPlainView(escapedHtml)
+      : window.diffEngine.formatFormattedView(escapedHtml);
+
+    pageBadge.textContent = pageLabel;
+  }
+
+  async function getOrLoadPdfDoc(version) {
+    if (state.pdfDocCache[version]) return state.pdfDocCache[version];
+    const file = version === "v1" ? state.fileV1 : state.fileV2;
+    if (!file || !window.pdfjsLib) return null;
+    const arrayBuffer = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    state.pdfDocCache[version] = doc;
+    return doc;
+  }
+
+  async function renderPaneCanvas(side) {
+    const config = state.panes[side];
+    if (config.content === "redline") return; // PDF option is disabled for redline
+
+    const pageBadge = document.getElementById(`panePageCount-${side}`);
+    const pageNumEl = document.querySelector(`.pane-page-num[data-pane="${side}"]`);
+    const canvas = document.getElementById(`canvas-${side}`);
+
+    try {
+      const pdfDoc = await getOrLoadPdfDoc(config.content);
+      if (!pdfDoc || !canvas) return;
+
+      if (config.page > pdfDoc.numPages) config.page = pdfDoc.numPages;
+      if (config.page < 1) config.page = 1;
+
+      pageBadge.textContent = `${pdfDoc.numPages} page${pdfDoc.numPages === 1 ? "" : "s"}`;
+      pageNumEl.textContent = `${config.page} / ${pdfDoc.numPages}`;
+
+      const page = await pdfDoc.getPage(config.page);
+      const context = canvas.getContext("2d");
+      const viewport = page.getViewport({ scale: 1.3 });
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({ canvasContext: context, viewport }).promise;
+
+      const diffType = config.content === "v1" ? "DELETE" : "INSERT";
+      if (state.comparison && state.comparison.diffs) {
+        await highlightCanvasDiffs(page, viewport, context, diffType);
+      }
+    } catch (e) {
+      console.warn(`PDF canvas rendering error (${side}):`, e);
+    }
+  }
+
+  async function highlightCanvasDiffs(pdfPage, viewport, context, diffType) {
+    const textContent = await pdfPage.getTextContent();
+
+    // Build array of significant change tokens (min 3 chars to prevent false positives)
+    const targetDiffs = state.comparison.diffs
+      .filter(t => t.op === diffType)
+      .map(t => t.text.toLowerCase().trim())
+      .filter(t => t.length >= 3);
+
+    if (targetDiffs.length === 0) return;
+
+    context.save();
+    context.fillStyle = diffType === "DELETE" ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)";
+    context.strokeStyle = diffType === "DELETE" ? "#EF4444" : "#10B981";
+    context.lineWidth = 1.5;
+
+    textContent.items.forEach(item => {
+      const itemText = item.str.toLowerCase().trim();
+      if (!itemText || itemText.length < 3) return;
+
+      const isMatch = targetDiffs.some(dt => dt.split(/\s+/).includes(itemText));
+      if (isMatch) {
+        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
+        const x = tx[4];
+        const y = tx[5] - fontHeight;
+        const w = (item.width || 30) * viewport.scale;
+        const h = fontHeight * 1.1;
+
+        context.fillRect(x, y, w, h);
+        context.strokeRect(x, y, w, h);
+      }
+    });
+
+    context.restore();
   }
 
   // ==========================================================================
@@ -542,133 +678,6 @@ document.addEventListener("DOMContentLoaded", () => {
       scrollToCurrentDiff();
     }
   }
-
-  // ==========================================================================
-  // VISUAL CANVAS RENDERER (HANDLES UNEQUAL PAGE COUNTS e.g. 3 vs 5 PAGES)
-  // ==========================================================================
-
-  async function renderVisualCanvases() {
-    if (!window.pdfjsLib || !state.fileV1 || !state.fileV2) return;
-
-    try {
-      const arr1 = await state.fileV1.arrayBuffer();
-      const arr2 = await state.fileV2.arrayBuffer();
-
-      const pdf1 = await pdfjsLib.getDocument({ data: arr1 }).promise;
-      const pdf2 = await pdfjsLib.getDocument({ data: arr2 }).promise;
-
-      const totalPages1 = pdf1.numPages;
-      const totalPages2 = pdf2.numPages;
-      const maxPages = Math.max(totalPages1, totalPages2);
-
-      // Clamp current page
-      if (state.currentVisualPage > maxPages) state.currentVisualPage = maxPages;
-      if (state.currentVisualPage < 1) state.currentVisualPage = 1;
-
-      document.getElementById("visualPageNum").textContent = `Page ${state.currentVisualPage} of ${maxPages}`;
-
-      // Canvas 1: Original (v1)
-      if (state.currentVisualPage <= totalPages1) {
-        document.getElementById("labelCanvasV1").textContent = `Original Page ${state.currentVisualPage} of ${totalPages1}`;
-        const page1 = await pdf1.getPage(state.currentVisualPage);
-        await renderPageToCanvas(page1, "canvasV1", "DELETE");
-      } else {
-        document.getElementById("labelCanvasV1").textContent = `Original (End of Document - ${totalPages1} pages total)`;
-        renderEmptyCanvasMessage("canvasV1", `End of Original PDF (${totalPages1} pages)`);
-      }
-
-      // Canvas 2: Revised (v2)
-      if (state.currentVisualPage <= totalPages2) {
-        document.getElementById("labelCanvasV2").textContent = `Revised Page ${state.currentVisualPage} of ${totalPages2}`;
-        const page2 = await pdf2.getPage(state.currentVisualPage);
-        await renderPageToCanvas(page2, "canvasV2", "INSERT");
-      } else {
-        document.getElementById("labelCanvasV2").textContent = `Revised (End of Document - ${totalPages2} pages total)`;
-        renderEmptyCanvasMessage("canvasV2", `End of Revised PDF (${totalPages2} pages)`);
-      }
-
-    } catch (e) {
-      console.warn("Visual canvas rendering error:", e);
-    }
-  }
-
-  function renderEmptyCanvasMessage(canvasId, msg) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    const context = canvas.getContext("2d");
-    canvas.width = 450;
-    canvas.height = 300;
-    context.fillStyle = "#182032";
-    context.fillRect(0, 0, 450, 300);
-    context.fillStyle = "#64748B";
-    context.font = "14px Inter, sans-serif";
-    context.textAlign = "center";
-    context.fillText(msg, 225, 150);
-  }
-
-  async function renderPageToCanvas(pdfPage, canvasId, diffType) {
-    const canvas = document.getElementById(canvasId);
-    const context = canvas.getContext("2d");
-    const viewport = pdfPage.getViewport({ scale: 1.2 });
-
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
-
-    if (diffType && state.comparison && state.comparison.diffs) {
-      await highlightCanvasDiffs(pdfPage, viewport, context, diffType);
-    }
-  }
-
-  async function highlightCanvasDiffs(pdfPage, viewport, context, diffType) {
-    const textContent = await pdfPage.getTextContent();
-    
-    // Build array of significant change tokens (min 3 chars to prevent false positives)
-    const targetDiffs = state.comparison.diffs
-      .filter(t => t.op === diffType)
-      .map(t => t.text.toLowerCase().trim())
-      .filter(t => t.length >= 3);
-
-    if (targetDiffs.length === 0) return;
-
-    context.save();
-    context.fillStyle = diffType === "DELETE" ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)";
-    context.strokeStyle = diffType === "DELETE" ? "#EF4444" : "#10B981";
-    context.lineWidth = 1.5;
-
-    textContent.items.forEach(item => {
-      const itemText = item.str.toLowerCase().trim();
-      if (!itemText || itemText.length < 3) return;
-
-      const isMatch = targetDiffs.some(dt => dt.split(/\s+/).includes(itemText));
-      if (isMatch) {
-        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-        const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
-        const x = tx[4];
-        const y = tx[5] - fontHeight;
-        const w = (item.width || 30) * viewport.scale;
-        const h = fontHeight * 1.1;
-
-        context.fillRect(x, y, w, h);
-        context.strokeRect(x, y, w, h);
-      }
-    });
-
-    context.restore();
-  }
-
-  document.getElementById("btnPagePrev").addEventListener("click", () => {
-    if (state.currentVisualPage > 1) {
-      state.currentVisualPage--;
-      renderVisualCanvases();
-    }
-  });
-
-  document.getElementById("btnPageNext").addEventListener("click", () => {
-    state.currentVisualPage++;
-    renderVisualCanvases();
-  });
 
   // ==========================================================================
   // EXPORT MODAL & ACTIONS

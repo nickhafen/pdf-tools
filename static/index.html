@@ -117,25 +117,6 @@
       </div>
     </div>
 
-    <!-- SIDE-BY-SIDE SUB-TOGGLE (only shown while the Side-by-Side view is active) -->
-    <div class="sub-segmented-control hidden" id="sideBySideSubToggle">
-      <button class="sub-segment-btn active" data-subview="text">
-        <i data-lucide="align-left"></i>
-        <span>Formatted Text</span>
-      </button>
-      <button class="sub-segment-btn" data-subview="pdf">
-        <i data-lucide="file-type-2"></i>
-        <span>PDF Canvas View</span>
-      </button>
-    </div>
-
-    <!-- CANVAS PAGE SELECTOR (Only shown in PDF View) -->
-    <div class="page-selector hidden" id="canvasPageNav">
-      <span>Page:</span>
-      <button class="btn-icon" id="btnPagePrev"><i data-lucide="chevron-left"></i></button>
-      <span id="visualPageNum">1 / 1</span>
-      <button class="btn-icon" id="btnPageNext"><i data-lucide="chevron-right"></i></button>
-    </div>
   </section>
 
   <!-- MAIN CONTAINER -->
@@ -236,52 +217,71 @@
         </div>
       </div>
 
-      <!-- VIEW MODE 2: SYNCHRONIZED SIDE-BY-SIDE -->
+      <!-- VIEW MODE 2: SIDE-BY-SIDE (each pane independently configurable) -->
       <div class="view-panel" id="viewSideBySide">
+        <div class="side-by-side-grid">
 
-        <!-- SUB VIEW A: FORMATTED TEXT SIDE BY SIDE -->
-        <div class="side-by-side-grid" id="sideTextGrid">
-          <!-- LEFT ORIGINAL PANE -->
-          <div class="document-container side-pane" id="paneLeft">
+          <!-- LEFT PANE -->
+          <div class="document-container side-pane" id="paneLeft" data-pane="left">
             <div class="pane-header">
-              <div class="pane-title">
-                <i data-lucide="file"></i>
-                <span id="paneTitleV1">Original Document (v1)</span>
+              <div class="pane-controls">
+                <select class="pane-content-select" data-pane="left" title="What to show in this pane">
+                  <option value="v1" selected>Original (v1)</option>
+                  <option value="v2">Revised (v2)</option>
+                  <option value="redline">Redline</option>
+                </select>
+                <select class="pane-display-select" data-pane="left" title="How to display it">
+                  <option value="formatted" selected>Formatted</option>
+                  <option value="plain">Plain Text</option>
+                  <option value="pdf">PDF Canvas</option>
+                </select>
               </div>
-              <span class="pane-page-badge" id="panePageCountV1">-- pages</span>
+              <span class="pane-page-badge" id="panePageCount-left">-- pages</span>
             </div>
-            <div class="side-scroll-body" id="contentLeft">
-              <!-- Rendered Left document lines -->
+            <div class="pane-page-nav hidden" data-pane="left">
+              <button class="btn-icon pane-page-prev" data-pane="left"><i data-lucide="chevron-left"></i></button>
+              <span class="pane-page-num" data-pane="left">1 / 1</span>
+              <button class="btn-icon pane-page-next" data-pane="left"><i data-lucide="chevron-right"></i></button>
+            </div>
+            <div class="side-scroll-body" id="content-left" data-pane="left">
+              <!-- Rendered pane content -->
+            </div>
+            <div class="pane-canvas-wrapper hidden" data-pane="left">
+              <canvas class="pane-canvas" id="canvas-left"></canvas>
             </div>
           </div>
 
-          <!-- RIGHT REVISED PANE -->
-          <div class="document-container side-pane" id="paneRight">
+          <!-- RIGHT PANE -->
+          <div class="document-container side-pane" id="paneRight" data-pane="right">
             <div class="pane-header">
-              <div class="pane-title">
-                <i data-lucide="file-check"></i>
-                <span id="paneTitleV2">Revised Document (v2)</span>
+              <div class="pane-controls">
+                <select class="pane-content-select" data-pane="right" title="What to show in this pane">
+                  <option value="v1">Original (v1)</option>
+                  <option value="v2" selected>Revised (v2)</option>
+                  <option value="redline">Redline</option>
+                </select>
+                <select class="pane-display-select" data-pane="right" title="How to display it">
+                  <option value="formatted" selected>Formatted</option>
+                  <option value="plain">Plain Text</option>
+                  <option value="pdf">PDF Canvas</option>
+                </select>
               </div>
-              <span class="pane-page-badge" id="panePageCountV2">-- pages</span>
+              <span class="pane-page-badge" id="panePageCount-right">-- pages</span>
             </div>
-            <div class="side-scroll-body" id="contentRight">
-              <!-- Rendered Right document lines -->
+            <div class="pane-page-nav hidden" data-pane="right">
+              <button class="btn-icon pane-page-prev" data-pane="right"><i data-lucide="chevron-left"></i></button>
+              <span class="pane-page-num" data-pane="right">1 / 1</span>
+              <button class="btn-icon pane-page-next" data-pane="right"><i data-lucide="chevron-right"></i></button>
+            </div>
+            <div class="side-scroll-body" id="content-right" data-pane="right">
+              <!-- Rendered pane content -->
+            </div>
+            <div class="pane-canvas-wrapper hidden" data-pane="right">
+              <canvas class="pane-canvas" id="canvas-right"></canvas>
             </div>
           </div>
-        </div>
 
-        <!-- SUB VIEW B: VISUAL PDF CANVAS GRID -->
-        <div class="visual-canvas-grid hidden" id="sidePdfGrid">
-          <div class="canvas-wrapper">
-            <span class="canvas-label" id="labelCanvasV1">Original Page</span>
-            <canvas id="canvasV1"></canvas>
-          </div>
-          <div class="canvas-wrapper">
-            <span class="canvas-label" id="labelCanvasV2">Revised Page</span>
-            <canvas id="canvasV2"></canvas>
-          </div>
         </div>
-
       </div>
 
     </section>

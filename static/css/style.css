@@ -875,77 +875,89 @@ del.diff-del {
   justify-content: space-between;
 }
 
-.pane-title {
+.pane-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.pane-content-select,
+.pane-display-select {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.pane-content-select:focus,
+.pane-display-select:focus {
+  border-color: var(--accent-primary);
 }
 
 .pane-page-badge {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
+  white-space: nowrap;
 }
 
 .side-scroll-body {
   padding: 1.5rem;
   overflow-y: auto;
-  height: calc(100% - 50px);
+  flex: 1;
+  min-height: 0;
   font-family: var(--font-sans);
   font-size: 0.95rem;
   line-height: 1.7;
 }
 
-/* VISUAL CANVAS VIEW */
-.visual-container {
-  padding: 1rem;
+.plain-line {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.visual-header-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
+.plain-pagebreak {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px dashed var(--border-color);
+  margin: 1rem 0;
+  padding-top: 0.4rem;
 }
 
-.page-selector {
+/* PER-PANE PDF CANVAS VIEW */
+.pane-page-nav {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.9rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
 }
 
-.visual-canvas-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  align-items: flex-start;
-  justify-items: center;
-}
-
-.canvas-wrapper {
-  background: #FFF;
-  padding: 1rem;
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+.pane-canvas-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #2D3748;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
 }
 
-.canvas-label {
-  color: #334155;
-  font-weight: 700;
-  font-size: 0.8rem;
-  margin-bottom: 0.5rem;
-}
-
-canvas {
+.pane-canvas {
+  background: #FFF;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   max-width: 100%;
-  height: auto;
-  border: 1px solid #E2E8F0;
+  height: fit-content;
 }
 
 /* MODAL DIALOG */
