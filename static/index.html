@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Redline & Document Comparison Suite</title>
+  <meta name="description" content="Professional PDF text extraction, legal redlining, side-by-side comparison, and change tracking suite.">
+  
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- PDF.js CDN (Client-side fallback) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window['pdfjs-dist/build/pdf']) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+
+  <!-- Local diff-match-patch library -->
+  <script src="/static/js/diff_match_patch.js"></script>
+
+  <!-- App Custom Styles -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme">
+
+  <!-- TOP APP HEADER -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">
+        <i data-lucide="file-diff"></i>
+      </div>
+      <div class="brand-text">
+        <h1>RedlinePDF <span class="brand-badge">PRO</span></h1>
+        <p class="brand-tagline">PDF Text Extraction & Legal Redline Suite</p>
+      </div>
+    </div>
+
+    <!-- METRICS DASHBOARD (Hidden until comparison loaded) -->
+    <div class="header-metrics hidden" id="headerMetrics">
+      <div class="metric-card similarity">
+        <span class="metric-label">Match Score</span>
+        <span class="metric-value" id="metricSimilarity">--%</span>
+      </div>
+      <div class="metric-divider"></div>
+      <div class="metric-card additions">
+        <span class="metric-label">Added Words</span>
+        <span class="metric-value" id="metricAdditions">+0</span>
+      </div>
+      <div class="metric-card deletions">
+        <span class="metric-label">Deleted Words</span>
+        <span class="metric-value" id="metricDeletions">-0</span>
+      </div>
+      <div class="metric-card changes">
+        <span class="metric-label">Total Diffs</span>
+        <span class="metric-value" id="metricChanges">0</span>
+      </div>
+    </div>
+
+    <!-- ACTIONS & SETTINGS -->
+    <div class="header-actions">
+      <button class="btn btn-outline" id="btnLoadSample" title="Load demo contracts for quick testing">
+        <i data-lucide="sparkles"></i>
+        <span>Load Sample Demo</span>
+      </button>
+
+      <div class="ocr-status-badge" id="ocrBadge" title="Architecture supports modular OCR engines like Tesseract / Docling">
+        <i data-lucide="cpu"></i>
+        <span>Mode: Native PDF Stream</span>
+      </div>
+
+      <button class="btn btn-primary hidden" id="btnExportReport" title="Export Redline Report">
+        <i data-lucide="download"></i>
+        <span>Export Report</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="app-main">
+
+    <!-- TOOLBAR / CONTROLS PANEL -->
+    <section class="controls-toolbar">
+      <!-- VIEW MODES (2 MAIN OPTIONS) -->
+      <div class="segmented-control" id="viewModeControl">
+        <button class="segment-btn active" data-view="unified">
+          <i data-lucide="file-text"></i>
+          <span>Unified Redline</span>
+        </button>
+        <button class="segment-btn" data-view="sidebyside">
+          <i data-lucide="columns-2"></i>
+          <span>Synchronized Side-by-Side</span>
+        </button>
+      </div>
+
+      <!-- DIFF NAVIGATOR & SEARCH -->
+      <div class="diff-navigator hidden" id="diffNavigator">
+        <div class="nav-button-group">
+          <button class="btn-icon" id="btnPrevDiff" title="Previous Change (Shift+K)">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <span class="nav-counter" id="diffCounter">Change 0 of 0</span>
+          <button class="btn-icon" id="btnNextDiff" title="Next Change (Shift+J)">
+            <i data-lucide="chevron-right"></i>
+          </button>
+        </div>
+
+        <div class="nav-filter">
+          <i data-lucide="filter" class="filter-icon"></i>
+          <select id="diffFilterSelect">
+            <option value="all">All Differences</option>
+            <option value="insert">Additions Only (+)</option>
+            <option value="delete">Deletions Only (-)</option>
+          </select>
+        </div>
+
+        <div class="nav-search">
+          <i data-lucide="search"></i>
+          <input type="text" id="diffSearchInput" placeholder="Filter diffs by keyword...">
+        </div>
+      </div>
+    </section>
+
+    <!-- UPLOAD DROPZONE AREA -->
+    <section class="upload-section" id="uploadSection">
+      <div class="dropzone-grid">
+
+        <!-- ORIGINAL FILE CARD -->
+        <div class="dropzone-card" id="dropzoneV1">
+          <div class="card-badge">Original (v1)</div>
+          <div class="dropzone-content">
+            <div class="dropzone-icon">
+              <i data-lucide="file-up"></i>
+            </div>
+            <h3>Upload Original PDF</h3>
+            <p>Drag & drop the base document (contract v1, draft A)</p>
+            <input type="file" id="inputV1" accept="application/pdf" class="file-input">
+            <button class="btn btn-secondary btn-select">Select File</button>
+          </div>
+          <div class="file-meta hidden" id="fileMetaV1">
+            <i data-lucide="file-check" class="meta-icon"></i>
+            <div class="meta-details">
+              <span class="file-name" id="fileNameV1">--</span>
+              <span class="file-size" id="fileSizeV1">--</span>
+            </div>
+            <button class="btn-icon remove-file" id="removeV1" title="Remove file"><i data-lucide="x"></i></button>
+          </div>
+        </div>
+
+        <!-- VS DIVIDER -->
+        <div class="dropzone-vs-divider">
+          <div class="divider-circle">
+            <i data-lucide="arrow-left-right"></i>
+          </div>
+          <span>COMPARE WITH</span>
+        </div>
+
+        <!-- REVISED FILE CARD -->
+        <div class="dropzone-card" id="dropzoneV2">
+          <div class="card-badge revised">Revised (v2)</div>
+          <div class="dropzone-content">
+            <div class="dropzone-icon">
+              <i data-lucide="file-up"></i>
+            </div>
+            <h3>Upload Revised PDF</h3>
+            <p>Drag & drop the updated document (contract v2, draft B)</p>
+            <input type="file" id="inputV2" accept="application/pdf" class="file-input">
+            <button class="btn btn-secondary btn-select">Select File</button>
+          </div>
+          <div class="file-meta hidden" id="fileMetaV2">
+            <i data-lucide="file-check" class="meta-icon"></i>
+            <div class="meta-details">
+              <span class="file-name" id="fileNameV2">--</span>
+              <span class="file-size" id="fileSizeV2">--</span>
+            </div>
+            <button class="btn-icon remove-file" id="removeV2" title="Remove file"><i data-lucide="x"></i></button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COMPARE START BUTTON -->
+      <div class="compare-action-bar">
+        <button class="btn btn-primary btn-hero" id="btnRunCompare" disabled>
+          <i data-lucide="git-compare"></i>
+          <span>Generate Redline Comparison</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- LOADING SPINNER -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+      <div class="spinner-box">
+        <div class="spinner"></div>
+        <h3 id="loadingStatusText">Extracting document text stream...</h3>
+        <p>Analyzing word structures & alignment algorithms</p>
+      </div>
+    </div>
+
+    <!-- COMPARISON RESULTS PANELS -->
+    <section class="results-section hidden" id="resultsSection">
+
+      <!-- VIEW MODE 1: UNIFIED REDLINE -->
+      <div class="view-panel active" id="viewUnified">
+        <div class="document-container legal-document-paper">
+          <div class="document-header-meta">
+            <span id="docMetaTitle">Redline Tracked Changes Report</span>
+            <span class="legend">
+              <mark class="legend-del">Deleted Text</mark>
+              <mark class="legend-ins">Added Text</mark>
+            </span>
+          </div>
+          <div class="redline-paper-body" id="unifiedRedlineContent">
+            <!-- Rendered inline redline HTML goes here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW MODE 2: SYNCHRONIZED SIDE-BY-SIDE (WITH SUB-TOGGLE) -->
+      <div class="view-panel" id="viewSideBySide">
+        
+        <!-- SUB-TOGGLE TOOLBAR -->
+        <div class="side-sub-header">
+          <div class="sub-segmented-control" id="sideBySideSubToggle">
+            <button class="sub-segment-btn active" data-subview="text">
+              <i data-lucide="align-left"></i>
+              <span>Formatted Text</span>
+            </button>
+            <button class="sub-segment-btn" data-subview="pdf">
+              <i data-lucide="file-type-2"></i>
+              <span>PDF Canvas View</span>
+            </button>
+          </div>
+
+          <!-- CANVAS PAGE SELECTOR (Only shown in PDF View) -->
+          <div class="page-selector hidden" id="canvasPageNav">
+            <span>Page:</span>
+            <button class="btn-icon" id="btnPagePrev"><i data-lucide="chevron-left"></i></button>
+            <span id="visualPageNum">1 / 1</span>
+            <button class="btn-icon" id="btnPageNext"><i data-lucide="chevron-right"></i></button>
+          </div>
+        </div>
+
+        <!-- SUB VIEW A: FORMATTED TEXT SIDE BY SIDE -->
+        <div class="side-by-side-grid" id="sideTextGrid">
+          <!-- LEFT ORIGINAL PANE -->
+          <div class="document-container side-pane" id="paneLeft">
+            <div class="pane-header">
+              <div class="pane-title">
+                <i data-lucide="file"></i>
+                <span id="paneTitleV1">Original Document (v1)</span>
+              </div>
+              <span class="pane-page-badge" id="panePageCountV1">-- pages</span>
+            </div>
+            <div class="side-scroll-body" id="contentLeft">
+              <!-- Rendered Left document lines -->
+            </div>
+          </div>
+
+          <!-- RIGHT REVISED PANE -->
+          <div class="document-container side-pane" id="paneRight">
+            <div class="pane-header">
+              <div class="pane-title">
+                <i data-lucide="file-check"></i>
+                <span id="paneTitleV2">Revised Document (v2)</span>
+              </div>
+              <span class="pane-page-badge" id="panePageCountV2">-- pages</span>
+            </div>
+            <div class="side-scroll-body" id="contentRight">
+              <!-- Rendered Right document lines -->
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB VIEW B: VISUAL PDF CANVAS GRID -->
+        <div class="visual-canvas-grid hidden" id="sidePdfGrid">
+          <div class="canvas-wrapper">
+            <span class="canvas-label" id="labelCanvasV1">Original Page</span>
+            <canvas id="canvasV1"></canvas>
+          </div>
+          <div class="canvas-wrapper">
+            <span class="canvas-label" id="labelCanvasV2">Revised Page</span>
+            <canvas id="canvasV2"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- EXPORT MODAL -->
+  <div class="modal-backdrop hidden" id="exportModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i data-lucide="share-2"></i> Export Redline Report</h3>
+        <button class="btn-icon" id="btnCloseExportModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p>Choose an export format to save or share your comparison report:</p>
+        <div class="export-options-list">
+          <button class="export-opt-btn" id="btnExportHTML">
+            <div class="opt-icon html"><i data-lucide="code"></i></div>
+            <div class="opt-info">
+              <h4>Standalone HTML Redline</h4>
+              <p>Self-contained HTML file with formatted redlines and stats.</p>
+            </div>
+          </button>
+
+          <button class="export-opt-btn" id="btnExportPrint">
+            <div class="opt-icon pdf"><i data-lucide="printer"></i></div>
+            <div class="opt-info">
+              <h4>Print or Save to PDF</h4>
+              <p>Opens browser print dialog optimized for legal printing.</p>
+            </div>
+          </button>
+
+          <button class="export-opt-btn" id="btnCopyText">
+            <div class="opt-icon text"><i data-lucide="copy"></i></div>
+            <div class="opt-info">
+              <h4>Copy Plaintext Redline</h4>
+              <p>Copies tracked changes markdown/text to your clipboard.</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Scripts -->
+  <script src="/static/js/pdfEngine.js"></script>
+  <script src="/static/js/diffEngine.js"></script>
+  <script src="/static/js/exportUtil.js"></script>
+  <script src="/static/js/app.js"></script>
+
+</body>
+</html>
