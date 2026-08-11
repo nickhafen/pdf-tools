@@ -81,11 +81,33 @@ class PDFEngine {
       }
     });
 
-    const lineTexts = lines
+    let lineTexts = lines
       .map(l => ({ text: l.parts.join('').replace(/[ \t]+/g, ' ').trim(), fontSize: l.maxFontSize }))
       .filter(l => l.text.length > 0);
 
     if (lineTexts.length === 0) return { text: "", wordCount: 0 };
+
+    // Some PDFs render a section number ("1.", "7A.") as its own text line,
+    // separate from the heading title that follows on the next line. Merge
+    // a bare numbering line into the line after it so the combined text can
+    // be tested as one heading candidate.
+    const BARE_NUMBERING_PATTERN = /^[0-9]{1,3}[A-Za-z]?\.?$/;
+    const mergedLines = [];
+    for (let idx = 0; idx < lineTexts.length; idx++) {
+      const cur = lineTexts[idx];
+      const next = lineTexts[idx + 1];
+      if (next && BARE_NUMBERING_PATTERN.test(cur.text)) {
+        const sep = cur.text.endsWith('.') ? ' ' : '. ';
+        mergedLines.push({
+          text: `${cur.text}${sep}${next.text}`,
+          fontSize: Math.max(cur.fontSize, next.fontSize)
+        });
+        idx++; // consume the next line too
+      } else {
+        mergedLines.push(cur);
+      }
+    }
+    lineTexts = mergedLines;
 
     // Body font size = the most common (rounded) line font size on the page
     const sizeCounts = {};
@@ -97,7 +119,30 @@ class PDFEngine {
       Object.entries(sizeCounts).sort((a, b) => b[1] - a[1])[0][0]
     );
 
-    const HEADING_TEXT_PATTERN = /^(?:[0-9]+(?:\.[0-9]+)*\.?\s+[A-Z].{0,80}|[A-Z][A-Z\s&"'\-]{4,60})$/;
+    const NUMBERED_HEADING_PATTERN = /^[0-9]+(?:\.[0-9]+)*[A-Za-z]?\.?\s+[A-Z].{0,80}$/;
+    const ALLCAPS_HEADING_PATTERN = /^[A-Z][A-Z\s&"'\-]{4,60}$/;
+    const MINOR_WORDS = new Set(["of", "and", "the", "for", "to", "in", "a", "an", "or", "&"]);
+
+    // Catches short Title Case headings that aren't numbered and aren't
+    // ALL CAPS (e.g. "Exhibit A — Statement of Work (SOW)"): most words
+    // start with a capital letter, any lowercase words are minor connectors,
+    // and it doesn't end like a sentence.
+    function looksLikeTitleCaseHeading(text) {
+      if (text.length >= 70 || /[.!?,]$/.test(text)) return false;
+      const words = text.split(/\s+/);
+      if (words.length < 2 || words.length > 9) return false;
+      let capCount = 0;
+      for (const w of words) {
+        const bare = w.replace(/[^A-Za-z]/g, "");
+        if (!bare) continue;
+        if (/^[A-Z]/.test(bare)) {
+          capCount++;
+        } else if (!MINOR_WORDS.has(w.toLowerCase())) {
+          return false;
+        }
+      }
+      return capCount >= Math.ceil(words.length * 0.5);
+    }
 
     let outputBlocks = [];
     let paragraphBuffer = [];
@@ -113,7 +158,10 @@ class PDFEngine {
       const isHeading =
         line.text.length < 90 &&
         (line.fontSize > bodyFontSize * 1.12 ||
-          (line.fontSize >= bodyFontSize && HEADING_TEXT_PATTERN.test(line.text)));
+          (line.fontSize >= bodyFontSize &&
+            (NUMBERED_HEADING_PATTERN.test(line.text) ||
+              ALLCAPS_HEADING_PATTERN.test(line.text) ||
+              looksLikeTitleCaseHeading(line.text))));
 
       if (isHeading) {
         flushParagraph();
