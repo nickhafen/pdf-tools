@@ -25,6 +25,10 @@
   <!-- Local diff-match-patch library -->
   <script src="/static/js/diff_match_patch.js"></script>
 
+  <!-- jsPDF + html2canvas CDN (client-side PDF export, no server round-trip) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <!-- App Custom Styles -->
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -60,6 +64,16 @@
         </div>
       </div>
 
+      <button class="btn btn-outline hidden" id="btnSwapDocs" title="Swap v1 and v2">
+        <i data-lucide="arrow-left-right"></i>
+        <span>Swap v1/v2</span>
+      </button>
+
+      <button class="btn btn-outline hidden" id="btnNewComparison" title="Start a new comparison">
+        <i data-lucide="rotate-ccw"></i>
+        <span>New Comparison</span>
+      </button>
+
       <button class="btn btn-outline hidden" id="btnShowStats" title="View comparison statistics">
         <i data-lucide="bar-chart-3"></i>
         <span>Stats</span>
@@ -70,9 +84,9 @@
         <span>Privacy & Help</span>
       </button>
 
-      <button class="btn btn-primary hidden" id="btnExportReport" title="Export Redline Report">
+      <button class="btn btn-primary hidden" id="btnExportReport" title="Export Redline">
         <i data-lucide="download"></i>
-        <span>Export Report</span>
+        <span>Export Redline</span>
       </button>
     </div>
   </header>
@@ -80,13 +94,13 @@
   <!-- STICKY TOP MENU: ROW 2 (view controls, shown once a comparison exists) -->
   <section class="app-toolbar hidden" id="appToolbar">
     <div class="segmented-control" id="viewModeControl">
-      <button class="segment-btn active" data-view="unified">
+      <button class="segment-btn active" data-view="single">
         <i data-lucide="file-text"></i>
-        <span>Unified Redline</span>
+        <span>Single View</span>
       </button>
-      <button class="segment-btn" data-view="sidebyside">
+      <button class="segment-btn" data-view="double">
         <i data-lucide="columns-2"></i>
-        <span>Synchronized Side-by-Side</span>
+        <span>Compare Side-by-Side</span>
       </button>
     </div>
 
@@ -102,19 +116,21 @@
         </button>
       </div>
 
-      <div class="nav-filter">
-        <i data-lucide="filter" class="filter-icon"></i>
-        <select id="diffFilterSelect">
-          <option value="all">All Differences</option>
-          <option value="insert">Additions Only (+)</option>
-          <option value="delete">Deletions Only (-)</option>
-        </select>
-      </div>
-
       <div class="nav-search">
         <i data-lucide="search"></i>
         <input type="text" id="diffSearchInput" placeholder="Filter diffs by keyword...">
       </div>
+    </div>
+
+    <!-- TEXT SIZE (applies to Formatted/Plain Text panes) -->
+    <div class="font-size-control" id="fontSizeControl" title="Text size (does not affect PDF Canvas)">
+      <button class="btn-icon" id="btnFontDecrease" title="Decrease text size">
+        <i data-lucide="minus"></i>
+      </button>
+      <span class="font-size-label" id="fontSizeLabel">100%</span>
+      <button class="btn-icon" id="btnFontIncrease" title="Increase text size">
+        <i data-lucide="plus"></i>
+      </button>
     </div>
 
   </section>
@@ -198,92 +214,73 @@
       </div>
     </div>
 
-    <!-- COMPARISON RESULTS PANELS -->
+    <!-- COMPARISON RESULTS: one or two independently configurable panes.
+         In Single View the left pane is hidden and the right pane goes
+         full width; in Compare Side-by-Side both are shown. -->
     <section class="results-section hidden" id="resultsSection">
+      <div class="side-by-side-grid single-mode" id="paneGrid">
 
-      <!-- VIEW MODE 1: UNIFIED REDLINE -->
-      <div class="view-panel active" id="viewUnified">
-        <div class="document-container legal-document-paper">
-          <div class="document-header-meta">
-            <span id="docMetaTitle">Redline Tracked Changes Report</span>
-            <span class="legend">
-              <mark class="legend-del">Deleted Text</mark>
-              <mark class="legend-ins">Added Text</mark>
-            </span>
+        <!-- LEFT PANE (hidden in Single View) -->
+        <div class="document-container side-pane" id="paneLeft" data-pane="left">
+          <div class="pane-header">
+            <div class="pane-controls">
+              <select class="pane-content-select" data-pane="left" title="What to show in this pane">
+                <option value="v1" selected>Original (v1)</option>
+                <option value="v2">Revised (v2)</option>
+                <option value="redline">Redline</option>
+              </select>
+              <select class="pane-display-select" data-pane="left" title="How to display it">
+                <option value="formatted" selected>Formatted</option>
+                <option value="plain">Plain Text</option>
+                <option value="pdf">PDF Canvas</option>
+              </select>
+            </div>
+            <span class="pane-page-badge" id="panePageCount-left">-- pages</span>
           </div>
-          <div class="redline-paper-body" id="unifiedRedlineContent">
-            <!-- Rendered inline redline HTML goes here -->
+          <div class="pane-page-nav hidden" data-pane="left">
+            <button class="btn-icon pane-page-prev" data-pane="left"><i data-lucide="chevron-left"></i></button>
+            <span class="pane-page-num" data-pane="left">1 / 1</span>
+            <button class="btn-icon pane-page-next" data-pane="left"><i data-lucide="chevron-right"></i></button>
+          </div>
+          <div class="side-scroll-body" id="content-left" data-pane="left">
+            <!-- Rendered pane content -->
+          </div>
+          <div class="pane-canvas-wrapper hidden" data-pane="left">
+            <canvas class="pane-canvas" id="canvas-left"></canvas>
           </div>
         </div>
-      </div>
 
-      <!-- VIEW MODE 2: SIDE-BY-SIDE (each pane independently configurable) -->
-      <div class="view-panel" id="viewSideBySide">
-        <div class="side-by-side-grid">
-
-          <!-- LEFT PANE -->
-          <div class="document-container side-pane" id="paneLeft" data-pane="left">
-            <div class="pane-header">
-              <div class="pane-controls">
-                <select class="pane-content-select" data-pane="left" title="What to show in this pane">
-                  <option value="v1" selected>Original (v1)</option>
-                  <option value="v2">Revised (v2)</option>
-                  <option value="redline">Redline</option>
-                </select>
-                <select class="pane-display-select" data-pane="left" title="How to display it">
-                  <option value="formatted" selected>Formatted</option>
-                  <option value="plain">Plain Text</option>
-                  <option value="pdf">PDF Canvas</option>
-                </select>
-              </div>
-              <span class="pane-page-badge" id="panePageCount-left">-- pages</span>
+        <!-- RIGHT PANE (the only pane shown in Single View; defaults to Redline) -->
+        <div class="document-container side-pane" id="paneRight" data-pane="right">
+          <div class="pane-header">
+            <div class="pane-controls">
+              <select class="pane-content-select" data-pane="right" title="What to show in this pane">
+                <option value="v1">Original (v1)</option>
+                <option value="v2">Revised (v2)</option>
+                <option value="redline" selected>Redline</option>
+              </select>
+              <select class="pane-display-select" data-pane="right" title="How to display it">
+                <option value="formatted" selected>Formatted</option>
+                <option value="plain">Plain Text</option>
+                <option value="pdf">PDF Canvas</option>
+              </select>
             </div>
-            <div class="pane-page-nav hidden" data-pane="left">
-              <button class="btn-icon pane-page-prev" data-pane="left"><i data-lucide="chevron-left"></i></button>
-              <span class="pane-page-num" data-pane="left">1 / 1</span>
-              <button class="btn-icon pane-page-next" data-pane="left"><i data-lucide="chevron-right"></i></button>
-            </div>
-            <div class="side-scroll-body" id="content-left" data-pane="left">
-              <!-- Rendered pane content -->
-            </div>
-            <div class="pane-canvas-wrapper hidden" data-pane="left">
-              <canvas class="pane-canvas" id="canvas-left"></canvas>
-            </div>
+            <span class="pane-page-badge" id="panePageCount-right">-- pages</span>
           </div>
-
-          <!-- RIGHT PANE -->
-          <div class="document-container side-pane" id="paneRight" data-pane="right">
-            <div class="pane-header">
-              <div class="pane-controls">
-                <select class="pane-content-select" data-pane="right" title="What to show in this pane">
-                  <option value="v1">Original (v1)</option>
-                  <option value="v2" selected>Revised (v2)</option>
-                  <option value="redline">Redline</option>
-                </select>
-                <select class="pane-display-select" data-pane="right" title="How to display it">
-                  <option value="formatted" selected>Formatted</option>
-                  <option value="plain">Plain Text</option>
-                  <option value="pdf">PDF Canvas</option>
-                </select>
-              </div>
-              <span class="pane-page-badge" id="panePageCount-right">-- pages</span>
-            </div>
-            <div class="pane-page-nav hidden" data-pane="right">
-              <button class="btn-icon pane-page-prev" data-pane="right"><i data-lucide="chevron-left"></i></button>
-              <span class="pane-page-num" data-pane="right">1 / 1</span>
-              <button class="btn-icon pane-page-next" data-pane="right"><i data-lucide="chevron-right"></i></button>
-            </div>
-            <div class="side-scroll-body" id="content-right" data-pane="right">
-              <!-- Rendered pane content -->
-            </div>
-            <div class="pane-canvas-wrapper hidden" data-pane="right">
-              <canvas class="pane-canvas" id="canvas-right"></canvas>
-            </div>
+          <div class="pane-page-nav hidden" data-pane="right">
+            <button class="btn-icon pane-page-prev" data-pane="right"><i data-lucide="chevron-left"></i></button>
+            <span class="pane-page-num" data-pane="right">1 / 1</span>
+            <button class="btn-icon pane-page-next" data-pane="right"><i data-lucide="chevron-right"></i></button>
           </div>
-
+          <div class="side-scroll-body" id="content-right" data-pane="right">
+            <!-- Rendered pane content -->
+          </div>
+          <div class="pane-canvas-wrapper hidden" data-pane="right">
+            <canvas class="pane-canvas" id="canvas-right"></canvas>
+          </div>
         </div>
-      </div>
 
+      </div>
     </section>
 
   </main>
@@ -311,11 +308,11 @@
             </div>
           </button>
 
-          <button class="export-opt-btn" id="btnExportPrint">
-            <div class="opt-icon pdf"><i data-lucide="printer"></i></div>
+          <button class="export-opt-btn" id="btnExportPDF">
+            <div class="opt-icon pdf"><i data-lucide="file-down"></i></div>
             <div class="opt-info">
-              <h4>Print or Save to PDF</h4>
-              <p>Opens browser print dialog optimized for legal printing.</p>
+              <h4>Download as PDF</h4>
+              <p>Generates and downloads a formatted PDF of the redline, built entirely in your browser.</p>
             </div>
           </button>
 
@@ -380,7 +377,7 @@
       <div class="modal-body">
         <div class="help-section">
           <h4><i data-lucide="mouse-pointer-click"></i> How to use it</h4>
-          <p>Upload an original PDF (v1) and a revised PDF (v2), or click <strong>Load Sample Demo</strong> to try it with example contracts. Click <strong>Generate Redline Comparison</strong> to see tracked changes. Use <strong>Unified Redline</strong> for a single marked-up document, or <strong>Synchronized Side-by-Side</strong> to view both versions next to each other as formatted text or rendered PDF pages. Use the change navigator (&lt; / &gt;, or Shift+J / Shift+K) to jump between edits, and the filter/search box to narrow down what you're looking at.</p>
+          <p>Upload an original PDF (v1) and a revised PDF (v2), or click <strong>Load Sample Demo</strong> to try it with example contracts. Click <strong>Generate Redline Comparison</strong> to see tracked changes. Each pane can independently show the <strong>Original (v1)</strong>, <strong>Revised (v2)</strong>, or <strong>Redline</strong>, displayed as <strong>Formatted</strong> text, <strong>Plain Text</strong>, or the actual <strong>PDF Canvas</strong>. Start in <strong>Single View</strong> (redline, full width) or switch to <strong>Compare Side-by-Side</strong> for two independent panes. Use <strong>Swap v1/v2</strong> to flip which document is which, and <strong>New Comparison</strong> to start over. Use the change navigator (&lt; / &gt;, or Shift+J / Shift+K) to jump between edits — active whenever at least one visible pane shows the Redline — and the search box to filter by keyword.</p>
         </div>
         <div class="help-section">
           <h4><i data-lucide="lock"></i> Privacy</h4>
@@ -391,8 +388,9 @@
           <ul>
             <li>Text extraction quality depends on how the PDF was produced. Scanned/image-only PDFs contain no extractable text yet — OCR support is on the roadmap.</li>
             <li>Heading and paragraph detection is inferred from font size and layout, and can misfire on unusual formatting (multi-column layouts, heavy custom styling, tables).</li>
-            <li>The <strong>PDF Canvas View</strong> highlight overlay is an approximate, word-matching visual aid — it is not a precise mapping of every diff and should not be relied on as the definitive record of changes. Use the Unified Redline view for that.</li>
+            <li>The <strong>PDF Canvas</strong> display shows the original, unmodified PDF page — it does not highlight changes. Use the <strong>Redline</strong> content (Formatted or Plain Text) to see tracked changes.</li>
             <li>Statistics (match score, added/deleted words) are computed from word-level text diffing and are a useful estimate, not a certified legal redline count.</li>
+            <li>PDF export renders the formatted redline through your browser (no server involved), so very long or complex documents may paginate imperfectly. For a pixel-perfect copy, use your browser's print dialog on the Standalone HTML export instead.</li>
           </ul>
         </div>
       </div>

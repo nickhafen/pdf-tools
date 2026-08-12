@@ -10,14 +10,15 @@ document.addEventListener("DOMContentLoaded", () => {
     docV1Data: null,
     docV2Data: null,
     comparison: null,
-    activeView: "unified",
     currentDiffIndex: 0,
     filteredDiffNodes: [],
-    // Each side-by-side pane is independently configurable: what to show
-    // (v1 / v2 / redline) and how (formatted text / plain text / PDF canvas).
+    fontScale: 1,
+    // Each pane is independently configurable: what to show (v1 / v2 /
+    // redline) and how (formatted text / plain text / PDF canvas). In
+    // Single View only the right pane is shown, full width.
     panes: {
       left: { content: "v1", display: "formatted", page: 1 },
-      right: { content: "v2", display: "formatted", page: 1 }
+      right: { content: "redline", display: "formatted", page: 1 }
     },
     pdfDocCache: {} // { v1: pdfjsDocument, v2: pdfjsDocument } to avoid re-parsing on every pane change
   };
@@ -42,6 +43,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const sampleDropdownMenu = document.getElementById("sampleDropdownMenu");
   const sampleDropdownList = document.getElementById("sampleDropdownList");
   const btnExportReport = document.getElementById("btnExportReport");
+  const btnSwapDocs = document.getElementById("btnSwapDocs");
+  const btnNewComparison = document.getElementById("btnNewComparison");
   const loadingOverlay = document.getElementById("loadingOverlay");
   const loadingStatusText = document.getElementById("loadingStatusText");
 
@@ -59,21 +62,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const diffNavigator = document.getElementById("diffNavigator");
 
   const viewModeControl = document.getElementById("viewModeControl");
-  const unifiedRedlineContent = document.getElementById("unifiedRedlineContent");
+  const paneGrid = document.getElementById("paneGrid");
   const contentLeft = document.getElementById("content-left");
   const contentRight = document.getElementById("content-right");
 
   const btnPrevDiff = document.getElementById("btnPrevDiff");
   const btnNextDiff = document.getElementById("btnNextDiff");
   const diffCounter = document.getElementById("diffCounter");
-  const diffFilterSelect = document.getElementById("diffFilterSelect");
   const diffSearchInput = document.getElementById("diffSearchInput");
+
+  const btnFontDecrease = document.getElementById("btnFontDecrease");
+  const btnFontIncrease = document.getElementById("btnFontIncrease");
+  const fontSizeLabel = document.getElementById("fontSizeLabel");
 
   // Export Modal Elements
   const exportModal = document.getElementById("exportModal");
   const btnCloseExportModal = document.getElementById("btnCloseExportModal");
   const btnExportHTML = document.getElementById("btnExportHTML");
-  const btnExportPrint = document.getElementById("btnExportPrint");
+  const btnExportPDF = document.getElementById("btnExportPDF");
   const btnCopyText = document.getElementById("btnCopyText");
 
   // Stats & Help Modal Elements
@@ -310,8 +316,8 @@ document.addEventListener("DOMContentLoaded", () => {
         state.docV2Data.full_text
       );
 
-      // Step 3: Render Results in UI
-      renderResults();
+      // Step 3: Render Results in UI (fresh comparison -> reset pane defaults)
+      renderResults(true);
 
     } catch (err) {
       console.error(err);
@@ -321,7 +327,81 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function renderResults() {
+  // ==========================================================================
+  // SWAP DOCUMENTS
+  // ==========================================================================
+
+  btnSwapDocs.addEventListener("click", swapDocuments);
+
+  async function swapDocuments() {
+    if (!state.fileV1 || !state.fileV2) return;
+
+    try {
+      showLoading("Swapping v1 and v2...");
+
+      [state.fileV1, state.fileV2] = [state.fileV2, state.fileV1];
+      [state.docV1Data, state.docV2Data] = [state.docV2Data, state.docV1Data];
+      state.pdfDocCache = {};
+
+      // Refresh the upload-screen file cards too, in case the user goes back
+      fileNameV1.textContent = state.fileV1.name;
+      fileSizeV1.textContent = formatBytes(state.fileV1.size);
+      fileNameV2.textContent = state.fileV2.name;
+      fileSizeV2.textContent = formatBytes(state.fileV2.size);
+
+      state.comparison = await window.diffEngine.compareDocuments(
+        state.fileV1,
+        state.fileV2,
+        state.docV1Data.full_text,
+        state.docV2Data.full_text
+      );
+
+      // Preserve the user's current view/pane configuration
+      renderResults(false);
+    } catch (err) {
+      console.error(err);
+      alert("Error swapping documents: " + err.message);
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // ==========================================================================
+  // NEW COMPARISON / RESET
+  // ==========================================================================
+
+  btnNewComparison.addEventListener("click", resetToUploadScreen);
+
+  function resetToUploadScreen() {
+    state.fileV1 = null;
+    state.fileV2 = null;
+    state.docV1Data = null;
+    state.docV2Data = null;
+    state.comparison = null;
+    state.pdfDocCache = {};
+    state.filteredDiffNodes = [];
+    state.currentDiffIndex = 0;
+
+    clearFile("V1", dropzoneV1, fileMetaV1, inputV1);
+    clearFile("V2", dropzoneV2, fileMetaV2, inputV2);
+
+    resultsSection.classList.add("hidden");
+    uploadSection.classList.remove("hidden");
+    appToolbar.classList.add("hidden");
+    btnShowStats.classList.add("hidden");
+    btnSwapDocs.classList.add("hidden");
+    btnNewComparison.classList.add("hidden");
+    btnExportReport.classList.add("hidden");
+    diffNavigator.classList.add("hidden");
+    diffSearchInput.value = "";
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // `resetPanes` is true for a brand-new comparison (single view, redline
+  // full width) and false when re-rendering after a swap, where the user's
+  // current view/pane configuration should be preserved.
+  function renderResults(resetPanes) {
     const comp = state.comparison;
     const stats = comp.statistics || {};
 
@@ -335,26 +415,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
     appToolbar.classList.remove("hidden");
     btnShowStats.classList.remove("hidden");
+    btnSwapDocs.classList.remove("hidden");
+    btnNewComparison.classList.remove("hidden");
     btnExportReport.classList.remove("hidden");
     diffNavigator.classList.remove("hidden");
 
-    // 2. Render Unified Redline Content
-    unifiedRedlineContent.innerHTML = comp.redlineHtml || "<p>No differences found.</p>";
+    if (resetPanes) {
+      state.panes.left = { content: "v1", display: "formatted", page: 1 };
+      state.panes.right = { content: "redline", display: "formatted", page: 1 };
 
-    // 3. Render Side-by-Side Panes (each independently configurable)
+      document.querySelector('.pane-content-select[data-pane="left"]').value = "v1";
+      document.querySelector('.pane-display-select[data-pane="left"]').value = "formatted";
+      document.querySelector('.pane-content-select[data-pane="right"]').value = "redline";
+      document.querySelector('.pane-display-select[data-pane="right"]').value = "formatted";
+      updatePaneOptionAvailability("left");
+      updatePaneOptionAvailability("right");
+
+      paneGrid.classList.add("single-mode");
+      viewModeControl.querySelectorAll(".segment-btn").forEach(b => b.classList.remove("active"));
+      viewModeControl.querySelector('[data-view="single"]').classList.add("active");
+    }
+
+    // Render Panes (each independently configurable)
     state.pdfDocCache = {};
     renderPane("left");
     renderPane("right");
 
-    // Synchronize Side-by-Side Scrolling
+    // Synchronize Pane Scrolling
     setupSynchronizedScroll();
 
-    // 4. Setup Diff Navigator State
+    // Setup Diff Navigator State
     state.filteredDiffNodes = comp.diffNodes || [];
     state.currentDiffIndex = state.filteredDiffNodes.length > 0 ? 1 : 0;
     updateDiffNavigatorUI();
+    updateDiffNavGating();
 
-    // 5. Show Results View Panel
+    // Show Results
     resultsSection.classList.remove("hidden");
     uploadSection.classList.add("hidden");
   }
@@ -387,10 +483,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================================================
-  // VIEW MODE SWITCHER
+  // VIEW MODE SWITCHER (Single View <-> Compare Side-by-Side)
   // ==========================================================================
 
-  // Main 2 View Controls: Unified Redline vs Side-by-Side
   viewModeControl.addEventListener("click", (e) => {
     const btn = e.target.closest(".segment-btn");
     if (!btn) return;
@@ -398,16 +493,8 @@ document.addEventListener("DOMContentLoaded", () => {
     viewModeControl.querySelectorAll(".segment-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
 
-    const viewName = btn.dataset.view;
-    state.activeView = viewName;
-
-    document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
-
-    if (viewName === "unified") {
-      document.getElementById("viewUnified").classList.add("active");
-    } else if (viewName === "sidebyside") {
-      document.getElementById("viewSideBySide").classList.add("active");
-    }
+    paneGrid.classList.toggle("single-mode", btn.dataset.view === "single");
+    updateDiffNavGating();
   });
 
   // ==========================================================================
@@ -420,6 +507,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.panes[side].content = e.target.value;
       updatePaneOptionAvailability(side);
       renderPane(side);
+      updateDiffNavGating();
     });
   });
 
@@ -537,52 +625,12 @@ document.addEventListener("DOMContentLoaded", () => {
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
+      // Renders the original PDF page as-is — no diff overlay. Use the
+      // Redline content (Formatted/Plain Text) to see tracked changes.
       await page.render({ canvasContext: context, viewport }).promise;
-
-      const diffType = config.content === "v1" ? "DELETE" : "INSERT";
-      if (state.comparison && state.comparison.diffs) {
-        await highlightCanvasDiffs(page, viewport, context, diffType);
-      }
     } catch (e) {
       console.warn(`PDF canvas rendering error (${side}):`, e);
     }
-  }
-
-  async function highlightCanvasDiffs(pdfPage, viewport, context, diffType) {
-    const textContent = await pdfPage.getTextContent();
-
-    // Build array of significant change tokens (min 3 chars to prevent false positives)
-    const targetDiffs = state.comparison.diffs
-      .filter(t => t.op === diffType)
-      .map(t => t.text.toLowerCase().trim())
-      .filter(t => t.length >= 3);
-
-    if (targetDiffs.length === 0) return;
-
-    context.save();
-    context.fillStyle = diffType === "DELETE" ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)";
-    context.strokeStyle = diffType === "DELETE" ? "#EF4444" : "#10B981";
-    context.lineWidth = 1.5;
-
-    textContent.items.forEach(item => {
-      const itemText = item.str.toLowerCase().trim();
-      if (!itemText || itemText.length < 3) return;
-
-      const isMatch = targetDiffs.some(dt => dt.split(/\s+/).includes(itemText));
-      if (isMatch) {
-        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-        const fontHeight = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
-        const x = tx[4];
-        const y = tx[5] - fontHeight;
-        const w = (item.width || 30) * viewport.scale;
-        const h = fontHeight * 1.1;
-
-        context.fillRect(x, y, w, h);
-        context.strokeRect(x, y, w, h);
-      }
-    });
-
-    context.restore();
   }
 
   // ==========================================================================
@@ -615,27 +663,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // The change navigator only makes sense when the Redline is actually
+  // visible somewhere (Single View's one pane, or either pane in Compare
+  // Side-by-Side) — otherwise there's nothing on screen to jump to.
+  function isRedlineVisible() {
+    const isDouble = !paneGrid.classList.contains("single-mode");
+    if (isDouble && state.panes.left.content === "redline") return true;
+    return state.panes.right.content === "redline";
+  }
+
+  function updateDiffNavGating() {
+    const active = isRedlineVisible() && state.filteredDiffNodes.length > 0;
+    diffNavigator.classList.toggle("inactive", !active);
+    btnPrevDiff.disabled = !active;
+    btnNextDiff.disabled = !active;
+  }
+
   function scrollToCurrentDiff() {
-    if (state.filteredDiffNodes.length === 0) return;
+    if (!isRedlineVisible() || state.filteredDiffNodes.length === 0) return;
     const targetNodeData = state.filteredDiffNodes[state.currentDiffIndex - 1];
     if (!targetNodeData) return;
 
     // Remove glow from previous diffs
     document.querySelectorAll(".active-diff-glow").forEach(el => el.classList.remove("active-diff-glow"));
 
-    const ids = targetNodeData.ids || [targetNodeData.id];
-    const targetEls = ids.map(id => document.getElementById(id)).filter(Boolean);
-    if (targetEls.length === 0) return;
-
-    targetEls.forEach(el => el.classList.add("active-diff-glow"));
-
-    // Scroll container to the first element in the group
-    const container = document.getElementById("unifiedRedlineContent");
-    const firstEl = targetEls[0];
-    if (container && container.contains(firstEl)) {
-      const offsetTop = firstEl.offsetTop - container.offsetTop - 80;
-      container.scrollTo({ top: Math.max(0, offsetTop), behavior: "smooth" });
-    }
+    // The same diff-id can appear in more than one pane at once (e.g. both
+    // panes showing Redline), so glow/scroll every match, not just one.
+    targetNodeData.ids.forEach(diffId => {
+      document.querySelectorAll(`[data-diff-id="${diffId}"]`).forEach(el => {
+        el.classList.add("active-diff-glow");
+        const container = el.closest(".side-scroll-body");
+        if (container) {
+          const offsetTop = el.offsetTop - container.offsetTop - 80;
+          container.scrollTo({ top: Math.max(0, offsetTop), behavior: "smooth" });
+        }
+      });
+    });
   }
 
   // Keyboard Shortcuts (Shift+J / Shift+K)
@@ -650,30 +713,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Search & Filter Listeners
-  diffFilterSelect.addEventListener("change", filterDiffs);
+  // Search Listener
   diffSearchInput.addEventListener("input", filterDiffs);
 
   function filterDiffs() {
     if (!state.comparison || !state.comparison.diffNodes) return;
 
-    const filterVal = diffFilterSelect.value;
     const searchVal = diffSearchInput.value.toLowerCase().trim();
 
-    state.filteredDiffNodes = state.comparison.diffNodes.filter(node => {
-      // "replace" groups contain both a deletion and an insertion, so they
-      // match either filter.
-      const matchesType = (filterVal === "all") ||
-        (filterVal === "insert" && (node.type === "insert" || node.type === "replace")) ||
-        (filterVal === "delete" && (node.type === "delete" || node.type === "replace"));
-
-      const matchesQuery = !searchVal || node.text.toLowerCase().includes(searchVal);
-
-      return matchesType && matchesQuery;
-    });
+    state.filteredDiffNodes = state.comparison.diffNodes.filter(node =>
+      !searchVal || node.text.toLowerCase().includes(searchVal)
+    );
 
     state.currentDiffIndex = state.filteredDiffNodes.length > 0 ? 1 : 0;
     updateDiffNavigatorUI();
+    updateDiffNavGating();
     if (state.filteredDiffNodes.length > 0) {
       scrollToCurrentDiff();
     }
@@ -691,9 +745,18 @@ document.addEventListener("DOMContentLoaded", () => {
     exportModal.classList.add("hidden");
   });
 
-  btnExportPrint.addEventListener("click", () => {
+  btnExportPDF.addEventListener("click", async () => {
     exportModal.classList.add("hidden");
-    window.exportUtil.triggerPrint();
+    if (!state.comparison) return;
+    try {
+      showLoading("Building PDF...");
+      await window.exportUtil.exportRedlinePDF(state.comparison);
+    } catch (err) {
+      console.error(err);
+      alert("Error generating PDF: " + err.message);
+    } finally {
+      hideLoading();
+    }
   });
 
   btnCopyText.addEventListener("click", async () => {
@@ -739,6 +802,31 @@ document.addEventListener("DOMContentLoaded", () => {
   btnJumpTop.addEventListener("click", () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
+
+  // ==========================================================================
+  // TEXT SIZE CONTROL (Formatted/Plain Text panes only — PDF Canvas is unaffected)
+  // ==========================================================================
+
+  const FONT_SCALE_MIN = 0.7;
+  const FONT_SCALE_MAX = 1.6;
+  const FONT_SCALE_STEP = 0.1;
+
+  function applyFontScale() {
+    document.documentElement.style.setProperty("--content-font-scale", state.fontScale.toFixed(2));
+    fontSizeLabel.textContent = `${Math.round(state.fontScale * 100)}%`;
+  }
+
+  btnFontDecrease.addEventListener("click", () => {
+    state.fontScale = Math.max(FONT_SCALE_MIN, +(state.fontScale - FONT_SCALE_STEP).toFixed(2));
+    applyFontScale();
+  });
+
+  btnFontIncrease.addEventListener("click", () => {
+    state.fontScale = Math.min(FONT_SCALE_MAX, +(state.fontScale + FONT_SCALE_STEP).toFixed(2));
+    applyFontScale();
+  });
+
+  applyFontScale();
 
   // Helpers
   function showLoading(msg) {

@@ -4,6 +4,9 @@
    ========================================================================== */
 
 :root {
+  /* Text size multiplier for Formatted/Plain Text panes, adjustable via the toolbar */
+  --content-font-scale: 1;
+
   /* Color Palette - Dark Obsidian Base */
   --bg-dark: #090D16;
   --bg-surface: #111726;
@@ -481,6 +484,35 @@ body.dark-theme {
   width: 160px;
 }
 
+.diff-navigator.inactive {
+  opacity: 0.45;
+}
+
+.diff-navigator.inactive .nav-button-group {
+  pointer-events: none;
+}
+
+/* TEXT SIZE CONTROL */
+.font-size-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-surface);
+  padding: 4px 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  margin-left: auto;
+}
+
+.font-size-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  width: 3.2em;
+  text-align: center;
+  user-select: none;
+}
+
 /* UPLOAD SECTION DROPZONES */
 .upload-section {
   display: flex;
@@ -659,17 +691,6 @@ body.dark-theme {
   flex-direction: column;
 }
 
-.view-panel {
-  display: none;
-  flex: 1;
-}
-
-.view-panel.active {
-  display: flex;
-  flex-direction: column;
-}
-
-/* LEGAL PAPER CONTAINER (UNIFIED VIEW) */
 .document-container {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
@@ -679,51 +700,6 @@ body.dark-theme {
   flex: 1;
   display: flex;
   flex-direction: column;
-}
-
-.document-header-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 1rem;
-  margin-bottom: 1.5rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.legend {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.legend-del {
-  background: var(--del-bg);
-  color: var(--del-text);
-  padding: 2px 8px;
-  border-radius: 4px;
-  text-decoration: line-through;
-  font-size: 0.8rem;
-}
-
-.legend-ins {
-  background: var(--ins-bg);
-  color: var(--ins-text);
-  padding: 2px 8px;
-  border-radius: 4px;
-  text-decoration: underline;
-  font-size: 0.8rem;
-}
-
-/* UNIFIED REDLINE PAPER TEXT */
-.redline-paper-body {
-  font-family: 'Inter', Georgia, serif;
-  font-size: 1.05rem;
-  line-height: 1.8;
-  color: #E2E8F0;
-  overflow-y: auto;
-  max-height: 720px;
-  padding-right: 1rem;
 }
 
 .redline-heading {
@@ -861,6 +837,15 @@ del.diff-del {
   height: 720px;
 }
 
+/* Single View: only the right pane is shown, full width */
+.side-by-side-grid.single-mode {
+  grid-template-columns: 1fr;
+}
+
+.side-by-side-grid.single-mode .side-pane[data-pane="left"] {
+  display: none;
+}
+
 .side-pane {
   padding: 0;
   overflow: hidden;
@@ -912,8 +897,12 @@ del.diff-del {
   flex: 1;
   min-height: 0;
   font-family: var(--font-sans);
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--content-font-scale));
   line-height: 1.7;
+}
+
+.side-scroll-body .redline-heading {
+  font-size: calc(1.2rem * var(--content-font-scale));
 }
 
 .plain-line {
@@ -1114,6 +1103,62 @@ del.diff-del {
   display: none !important;
 }
 
+/* PDF EXPORT RENDER CONTAINER (offscreen, light theme, used by jsPDF) */
+.pdf-export-render {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #111827;
+  background: #FFFFFF;
+}
+
+.pdf-export-render h1 {
+  font-family: Arial, sans-serif;
+  font-size: 20px;
+  color: #1E3A8A;
+  border-bottom: 2px solid #E5E7EB;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
+.pdf-export-render .redline-heading {
+  font-family: Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1E3A8A;
+  margin-top: 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #E5E7EB;
+  padding-bottom: 4px;
+}
+
+.pdf-export-render .redline-paragraph {
+  margin-bottom: 12px;
+}
+
+.pdf-export-render .redline-pagebreak {
+  border-top: 1px dashed #9CA3AF;
+  margin: 20px 0;
+}
+
+.pdf-export-render ins.diff-ins {
+  background-color: #D1FAE5;
+  color: #065F46;
+  text-decoration: underline;
+  font-weight: 600;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.pdf-export-render del.diff-del {
+  background-color: #FEE2E2;
+  color: #991B1B;
+  text-decoration: line-through;
+  font-weight: 600;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
 /* PRINT STYLES */
 @media print {
   body {
@@ -1123,9 +1168,10 @@ del.diff-del {
   .app-header, .app-toolbar, .modal-backdrop, .jump-top-btn {
     display: none !important;
   }
-  .redline-paper-body {
+  .side-scroll-body {
     color: #000 !important;
-    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   ins.diff-ins {
     background: #D1FAE5 !important;

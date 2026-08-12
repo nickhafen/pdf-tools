@@ -71,10 +71,54 @@ class ExportUtil {
   }
 
   /**
-   * Trigger Browser Print (Print to PDF)
+   * Render the formatted redline (independent of whatever is currently on
+   * screen) into an offscreen light-theme container and download it as a
+   * real PDF file via jsPDF + html2canvas — entirely client-side, no server
+   * round-trip. Long/complex documents may paginate imperfectly; this is a
+   * best-effort browser-side render, not a print-quality typesetting engine.
    */
-  triggerPrint() {
-    window.print();
+  async exportRedlinePDF(comparisonData) {
+    if (!comparisonData) return;
+
+    if (!window.jspdf || !window.html2canvas) {
+      alert("PDF export library failed to load (check your internet connection) — try the Standalone HTML export instead.");
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+
+    const container = document.createElement("div");
+    container.className = "pdf-export-render";
+    container.style.cssText = "position:absolute; left:-9999px; top:0; width:650px; padding:24px;";
+    container.innerHTML = `
+      <h1>PDF Redline Tracked Changes Report</h1>
+      <div>${comparisonData.redlineHtml || "<p>No differences found.</p>"}</div>
+    `;
+    document.body.appendChild(container);
+
+    try {
+      const pdf = new jsPDF({ unit: "pt", format: "letter" });
+      await new Promise((resolve, reject) => {
+        pdf.html(container, {
+          callback: (doc) => {
+            try {
+              doc.save(`Redline_Report_${Date.now()}.pdf`);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          },
+          x: 40,
+          y: 40,
+          width: 530,
+          windowWidth: 650,
+          autoPaging: "text",
+          html2canvas: { scale: 0.8 }
+        });
+      });
+    } finally {
+      document.body.removeChild(container);
+    }
   }
 }
 

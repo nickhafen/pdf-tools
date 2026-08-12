@@ -27,15 +27,19 @@ class DiffEngine {
     const diffs = result.diffs || [];
     let i = 0;
 
+    // The redline can be rendered into more than one pane at once (e.g. both
+    // panes set to "Redline" in Compare Side-by-Side), so change markers use
+    // a data attribute rather than a DOM id — ids must be unique per
+    // document, but the same diff-id can legitimately appear more than once.
     const emit = (token, groupId, suffix) => {
-      const id = `diff-change-${groupId}${suffix}`;
+      const diffId = `${groupId}${suffix}`;
       const esc = this._escapeHtml(token.text);
       if (token.op === "INSERT") {
-        rawHtml += `<ins class="diff-ins" id="${id}" data-group="${groupId}">${esc}</ins>`;
+        rawHtml += `<ins class="diff-ins" data-diff-id="${diffId}" data-group="${groupId}">${esc}</ins>`;
       } else {
-        rawHtml += `<del class="diff-del" id="${id}" data-group="${groupId}">${esc}</del>`;
+        rawHtml += `<del class="diff-del" data-diff-id="${diffId}" data-group="${groupId}">${esc}</del>`;
       }
-      return id;
+      return diffId;
     };
 
     while (i < diffs.length) {
