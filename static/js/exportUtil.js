@@ -72,10 +72,17 @@ class ExportUtil {
 
   /**
    * Render the formatted redline (independent of whatever is currently on
-   * screen) into an offscreen light-theme container and download it as a
-   * real PDF file via jsPDF + html2canvas — entirely client-side, no server
-   * round-trip. Long/complex documents may paginate imperfectly; this is a
-   * best-effort browser-side render, not a print-quality typesetting engine.
+   * screen) into a hidden light-theme container, rasterize it with
+   * html2canvas, and slice that image into letter-size PDF pages ourselves.
+   * This is more reliable than jsPDF's built-in .html()/autoPaging, which
+   * reads element coordinates via getBoundingClientRect() and produces a
+   * blank PDF if the source element isn't positioned in-flow near the
+   * viewport origin. The container renders at a low z-index behind the
+   * app's own full-screen loading overlay (shown by the caller during
+   * export), so nothing is visibly seen on screen. Trade-off: the resulting
+   * PDF is an image of the redline, not selectable text — a print-quality
+   * vector export would require a server-side renderer, which this
+   * browser-only tool intentionally doesn't have.
    */
   async exportRedlinePDF(comparisonData) {
     if (!comparisonData) return;
@@ -89,7 +96,7 @@ class ExportUtil {
 
     const container = document.createElement("div");
     container.className = "pdf-export-render";
-    container.style.cssText = "position:absolute; left:-9999px; top:0; width:650px; padding:24px;";
+    container.style.cssText = "position:fixed; top:0; left:0; width:700px; z-index:1; padding:28px; background:#FFFFFF;";
     container.innerHTML = `
       <h1>PDF Redline Tracked Changes Report</h1>
       <div>${comparisonData.redlineHtml || "<p>No differences found.</p>"}</div>
@@ -97,25 +104,57 @@ class ExportUtil {
     document.body.appendChild(container);
 
     try {
-      const pdf = new jsPDF({ unit: "pt", format: "letter" });
-      await new Promise((resolve, reject) => {
-        pdf.html(container, {
-          callback: (doc) => {
-            try {
-              doc.save(`Redline_Report_${Date.now()}.pdf`);
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          },
-          x: 40,
-          y: 40,
-          width: 530,
-          windowWidth: 650,
-          autoPaging: "text",
-          html2canvas: { scale: 0.8 }
-        });
+      // Let the browser paint the container before capturing it. A fixed
+      // timeout (not requestAnimationFrame) is used deliberately: rAF can be
+      // throttled or never fire at all for a backgrounded/inactive tab,
+      // which would hang this export indefinitely.
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const canvas = await window.html2canvas(container, {
+        scale: 2,
+        backgroundColor: "#FFFFFF",
+        windowWidth: container.scrollWidth,
+        windowHeight: container.scrollHeight
       });
+
+      if (canvas.width === 0 || canvas.height === 0) {
+        throw new Error("Rendered content was empty.");
+      }
+
+      const pdf = new jsPDF({ unit: "pt", format: "letter" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 30;
+      const usableWidthPt = pageWidth - margin * 2;
+      const usableHeightPt = pageHeight - margin * 2;
+
+      const ptPerSourcePx = usableWidthPt / canvas.width;
+      const pageHeightPx = usableHeightPt / ptPerSourcePx;
+
+      let renderedPx = 0;
+      let pageIndex = 0;
+
+      while (renderedPx < canvas.height) {
+        const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeightPx;
+        pageCanvas.getContext("2d").drawImage(
+          canvas,
+          0, renderedPx, canvas.width, sliceHeightPx,
+          0, 0, canvas.width, sliceHeightPx
+        );
+
+        const imgData = pageCanvas.toDataURL("image/jpeg", 0.92);
+        if (pageIndex > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", margin, margin, usableWidthPt, sliceHeightPx * ptPerSourcePx);
+
+        renderedPx += sliceHeightPx;
+        pageIndex++;
+      }
+
+      pdf.save(`Redline_Report_${Date.now()}.pdf`);
     } finally {
       document.body.removeChild(container);
     }
