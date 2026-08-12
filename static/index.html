@@ -50,7 +50,7 @@
       <div class="split-button" id="sampleSplitButton">
         <button class="btn btn-outline split-btn-main" id="btnLoadSample" title="Load the public sample contracts">
           <i data-lucide="sparkles"></i>
-          <span>Load Sample Demo</span>
+          <span>Load Sample</span>
         </button>
         <button class="btn btn-outline split-btn-arrow" id="btnSampleDropdownToggle" title="Choose a demo document pair">
           <i data-lucide="chevron-down"></i>
@@ -71,7 +71,7 @@
 
       <button class="btn btn-outline hidden" id="btnNewComparison" title="Start a new comparison">
         <i data-lucide="rotate-ccw"></i>
-        <span>New Comparison</span>
+        <span>Reset</span>
       </button>
 
       <button class="btn btn-outline hidden" id="btnShowStats" title="View comparison statistics">
@@ -80,8 +80,8 @@
       </button>
 
       <button class="btn btn-outline" id="btnShowHelp" title="How to use this tool, privacy, and limitations">
-        <i data-lucide="shield-question"></i>
-        <span>Privacy & Help</span>
+        <i data-lucide="info"></i>
+        <span>Info</span>
       </button>
 
       <button class="btn btn-primary hidden" id="btnExportReport" title="Export Redline">
@@ -235,7 +235,6 @@
                 <option value="pdf">PDF Canvas</option>
               </select>
             </div>
-            <span class="pane-page-badge" id="panePageCount-left">-- pages</span>
           </div>
           <div class="pane-page-nav hidden" data-pane="left">
             <button class="btn-icon pane-page-prev" data-pane="left"><i data-lucide="chevron-left"></i></button>
@@ -265,7 +264,6 @@
                 <option value="pdf">PDF Canvas</option>
               </select>
             </div>
-            <span class="pane-page-badge" id="panePageCount-right">-- pages</span>
           </div>
           <div class="pane-page-nav hidden" data-pane="right">
             <button class="btn-icon pane-page-prev" data-pane="right"><i data-lucide="chevron-left"></i></button>
@@ -362,7 +360,7 @@
             <span class="stat-tile-value" id="metricWordsV2">0</span>
           </div>
         </div>
-        <p class="stats-caveat">Word counts and match score are computed from extracted text and grouped word-level diffs. Treat them as a useful estimate, not an exact legal accounting of changes — see Privacy & Help for limitations.</p>
+        <p class="stats-caveat">Word counts and match score are computed from extracted text and grouped word-level diffs. Treat them as a useful estimate, not an exact legal accounting of changes — see Info for limitations.</p>
       </div>
     </div>
   </div>
@@ -371,13 +369,13 @@
   <div class="modal-backdrop hidden" id="helpModal">
     <div class="modal-card modal-card-wide">
       <div class="modal-header">
-        <h3><i data-lucide="shield-question"></i> Privacy & Help</h3>
+        <h3><i data-lucide="info"></i> Info</h3>
         <button class="btn-icon" id="btnCloseHelpModal"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
         <div class="help-section">
           <h4><i data-lucide="mouse-pointer-click"></i> How to use it</h4>
-          <p>Upload an original PDF (v1) and a revised PDF (v2), or click <strong>Load Sample Demo</strong> to try it with example contracts. Click <strong>Generate Redline Comparison</strong> to see tracked changes. Each pane can independently show the <strong>Original (v1)</strong>, <strong>Revised (v2)</strong>, or <strong>Redline</strong>, displayed as <strong>Formatted</strong> text, <strong>Plain Text</strong>, or the actual <strong>PDF Canvas</strong>. Start in <strong>Single View</strong> (redline, full width) or switch to <strong>Compare Side-by-Side</strong> for two independent panes. Use <strong>Swap v1/v2</strong> to flip which document is which, and <strong>New Comparison</strong> to start over. Use the change navigator (&lt; / &gt;, or Shift+J / Shift+K) to jump between edits — active whenever at least one visible pane shows the Redline — and the search box to filter by keyword.</p>
+          <p>Upload an original PDF (v1) and a revised PDF (v2), or click <strong>Load Sample</strong> to try it with example contracts. Click <strong>Generate Redline Comparison</strong> to see tracked changes. Each pane can independently show the <strong>Original (v1)</strong>, <strong>Revised (v2)</strong>, or <strong>Redline</strong>, displayed as <strong>Formatted</strong> text, <strong>Plain Text</strong>, or the actual <strong>PDF Canvas</strong>. Start in <strong>Single View</strong> (redline, full width) or switch to <strong>Compare Side-by-Side</strong> for two independent panes. Use <strong>Swap v1/v2</strong> to flip which document is which, and <strong>Reset</strong> to start over. Use the change navigator (&lt; / &gt;, or Shift+J / Shift+K) to jump between edits — active whenever at least one visible pane shows the Redline — and the search box to filter by keyword. Press <strong>Esc</strong> to close any open dialog.</p>
         </div>
         <div class="help-section">
           <h4><i data-lucide="lock"></i> Privacy</h4>

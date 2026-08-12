@@ -93,12 +93,16 @@ class ExportUtil {
     }
 
     const { jsPDF } = window.jspdf;
+    const v1Name = window.diffEngine.escapeForView(comparisonData.docNameV1 || "Original (v1)");
+    const v2Name = window.diffEngine.escapeForView(comparisonData.docNameV2 || "Revised (v2)");
+    const timestamp = window.diffEngine.escapeForView(new Date().toLocaleString());
 
     const container = document.createElement("div");
     container.className = "pdf-export-render";
     container.style.cssText = "position:fixed; top:0; left:0; width:700px; z-index:1; padding:28px; background:#FFFFFF;";
     container.innerHTML = `
-      <h1>PDF Redline Tracked Changes Report</h1>
+      <h1>PDF Redline</h1>
+      <p class="pdf-meta">v1: ${v1Name}<br>v2: ${v2Name}<br>${timestamp}</p>
       <div>${comparisonData.redlineHtml || "<p>No differences found.</p>"}</div>
     `;
     document.body.appendChild(container);

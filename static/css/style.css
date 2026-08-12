@@ -203,6 +203,7 @@ body.dark-theme {
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 
@@ -884,13 +885,6 @@ del.diff-del {
   border-color: var(--accent-primary);
 }
 
-.pane-page-badge {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-}
-
 .side-scroll-body {
   padding: 1.5rem;
   overflow-y: auto;
@@ -1116,9 +1110,17 @@ del.diff-del {
   font-family: Arial, sans-serif;
   font-size: 20px;
   color: #1E3A8A;
+  margin-bottom: 4px;
+}
+
+.pdf-export-render .pdf-meta {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  color: #4B5563;
+  line-height: 1.6;
   border-bottom: 2px solid #E5E7EB;
-  padding-bottom: 8px;
-  margin-bottom: 16px;
+  padding-bottom: 10px;
+  margin-bottom: 18px;
 }
 
 .pdf-export-render .redline-heading {
@@ -1141,22 +1143,21 @@ del.diff-del {
   margin: 20px 0;
 }
 
+/* No background-color here (unlike the on-screen redline): html2canvas
+   renders a wrapped inline element's background as one bounding box
+   spanning its full multi-line width instead of per-line boxes, producing
+   a distorted highlight block in the exported PDF. Color + underline/
+   strikethrough alone stay legible without that artifact. */
 .pdf-export-render ins.diff-ins {
-  background-color: #D1FAE5;
   color: #065F46;
   text-decoration: underline;
   font-weight: 600;
-  padding: 1px 3px;
-  border-radius: 3px;
 }
 
 .pdf-export-render del.diff-del {
-  background-color: #FEE2E2;
   color: #991B1B;
   text-decoration: line-through;
   font-weight: 600;
-  padding: 1px 3px;
-  border-radius: 3px;
 }
 
 /* PRINT STYLES */

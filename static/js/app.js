@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     comparison: null,
     currentDiffIndex: 0,
     filteredDiffNodes: [],
-    fontScale: 1,
+    fontScale: 0.9,
     // Each pane is independently configurable: what to show (v1 / v2 /
     // redline) and how (formatted text / plain text / PDF canvas). In
     // Single View only the right pane is shown, full width.
@@ -191,6 +191,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================================================
 
   btnLoadSample.addEventListener("click", () => {
+    // Clicking the main button is not an "outside click" relative to
+    // #sampleSplitButton (it's inside that container), so the dropdown
+    // wouldn't otherwise auto-close if it happened to be open.
+    sampleDropdownMenu.classList.add("hidden");
     loadSamplePair(
       "/api/samples/contract_v1", "sample_contract_v1.pdf",
       "/api/samples/contract_v2", "sample_contract_v2.pdf"
@@ -315,6 +319,8 @@ document.addEventListener("DOMContentLoaded", () => {
         state.docV1Data.full_text,
         state.docV2Data.full_text
       );
+      state.comparison.docNameV1 = state.fileV1.name;
+      state.comparison.docNameV2 = state.fileV2.name;
 
       // Step 3: Render Results in UI (fresh comparison -> reset pane defaults)
       renderResults(true);
@@ -355,6 +361,8 @@ document.addEventListener("DOMContentLoaded", () => {
         state.docV1Data.full_text,
         state.docV2Data.full_text
       );
+      state.comparison.docNameV1 = state.fileV1.name;
+      state.comparison.docNameV2 = state.fileV2.name;
 
       // Preserve the user's current view/pane configuration
       renderResults(false);
@@ -557,7 +565,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const textEl = document.getElementById(`content-${side}`);
     const canvasWrapper = paneEl.querySelector(".pane-canvas-wrapper");
     const pageNav = paneEl.querySelector(".pane-page-nav");
-    const pageBadge = document.getElementById(`panePageCount-${side}`);
 
     if (config.display === "pdf") {
       textEl.classList.add("hidden");
@@ -572,22 +579,17 @@ document.addEventListener("DOMContentLoaded", () => {
     textEl.classList.remove("hidden");
 
     let escapedHtml;
-    let pageLabel = "";
 
     if (config.content === "redline") {
       escapedHtml = state.comparison ? state.comparison.redlineRawHtml : "";
-      pageLabel = "redline";
     } else {
       const docData = config.content === "v1" ? state.docV1Data : state.docV2Data;
       escapedHtml = window.diffEngine.escapeForView(docData ? docData.full_text : "");
-      pageLabel = docData ? `${docData.page_count} page${docData.page_count === 1 ? "" : "s"}` : "-- pages";
     }
 
     textEl.innerHTML = config.display === "plain"
       ? window.diffEngine.formatPlainView(escapedHtml)
       : window.diffEngine.formatFormattedView(escapedHtml);
-
-    pageBadge.textContent = pageLabel;
   }
 
   async function getOrLoadPdfDoc(version) {
@@ -604,7 +606,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const config = state.panes[side];
     if (config.content === "redline") return; // PDF option is disabled for redline
 
-    const pageBadge = document.getElementById(`panePageCount-${side}`);
     const pageNumEl = document.querySelector(`.pane-page-num[data-pane="${side}"]`);
     const canvas = document.getElementById(`canvas-${side}`);
 
@@ -615,7 +616,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (config.page > pdfDoc.numPages) config.page = pdfDoc.numPages;
       if (config.page < 1) config.page = 1;
 
-      pageBadge.textContent = `${pdfDoc.numPages} page${pdfDoc.numPages === 1 ? "" : "s"}`;
       pageNumEl.textContent = `${config.page} / ${pdfDoc.numPages}`;
 
       const page = await pdfDoc.getPage(config.page);
@@ -785,6 +785,14 @@ document.addEventListener("DOMContentLoaded", () => {
   btnCloseHelpModal.addEventListener("click", () => helpModal.classList.add("hidden"));
   helpModal.addEventListener("click", (e) => {
     if (e.target === helpModal) helpModal.classList.add("hidden");
+  });
+
+  // Esc closes whichever modal is currently open
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach(modal => {
+      modal.classList.add("hidden");
+    });
   });
 
   // ==========================================================================
