@@ -17,33 +17,22 @@ TEST_DOCS_DIR = os.path.join(BASE_DIR, "test-documents")
 SAMPLE_FILENAME_RE = re.compile(r"^(?P<label>.+?)[-_ ]*v(?P<version>[12])\.pdf$", re.IGNORECASE)
 
 # ==============================================================================
-# PUBLIC SAMPLE CONTRACTS (bundled demo, auto-generated if missing)
+# PUBLIC SAMPLE CONTRACTS (bundled demo in static/samples/, committed so the
+# static GitHub Pages build has them; regenerated here only if missing)
 # ==============================================================================
 
+SAMPLES_DIR = os.path.join(BASE_DIR, "static", "samples")
+
 def _ensure_public_samples():
-    path_v1 = os.path.join(BASE_DIR, "sample_contract_v1.pdf")
-    path_v2 = os.path.join(BASE_DIR, "sample_contract_v2.pdf")
-    if not (os.path.exists(path_v1) and os.path.exists(path_v2)):
+    paths = [os.path.join(SAMPLES_DIR, f"sample_contract_v{v}.pdf") for v in (1, 2)]
+    if not all(os.path.exists(p) for p in paths):
         try:
             from create_samples import create_sample_pdfs
             create_sample_pdfs()
         except Exception as e:
             print("Error auto-generating samples:", e)
-    return path_v1, path_v2
 
-@app.get("/api/samples/contract_v1")
-async def get_sample_v1():
-    path_v1, _ = _ensure_public_samples()
-    if os.path.exists(path_v1):
-        return FileResponse(path_v1, media_type="application/pdf", filename="sample_contract_v1.pdf")
-    raise HTTPException(status_code=404, detail="Sample PDF 1 not found.")
-
-@app.get("/api/samples/contract_v2")
-async def get_sample_v2():
-    _, path_v2 = _ensure_public_samples()
-    if os.path.exists(path_v2):
-        return FileResponse(path_v2, media_type="application/pdf", filename="sample_contract_v2.pdf")
-    raise HTTPException(status_code=404, detail="Sample PDF 2 not found.")
+_ensure_public_samples()
 
 # ==============================================================================
 # PRIVATE TEST-DOCUMENT DEMOS (local only — this folder is gitignored and never
@@ -91,7 +80,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def root():
     return FileResponse("static/index.html")
 
+# Pages link to each other as "./" and "redact.html" (relative, so the same
+# HTML also works on GitHub Pages under /pdf-tools/).
 @app.get("/redact")
+@app.get("/redact.html")
 async def redact():
     return FileResponse("static/redact.html")
 

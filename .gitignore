@@ -2,6 +2,8 @@
 test-documents/
 test-documents/*
 *.pdf
+# ...except the synthetic demo contracts, which the static GitHub Pages build needs
+!static/samples/*.pdf
 
 # Python
 __pycache__/

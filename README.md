@@ -1,6 +1,8 @@
 # PDF Redline & Comparison Suite
 
-Browser-based PDF tools: compare two versions of a PDF as a redline, and permanently redact sensitive content. All document processing happens client-side in the browser — the FastAPI backend only serves static files and sample/demo PDFs, so uploaded documents never leave your machine.
+Browser-based PDF tools: compare two versions of a PDF as a redline, and permanently redact sensitive content. All document processing happens client-side in the browser, so uploaded documents never leave your machine.
+
+**Live site:** https://nickhafen.github.io/pdf-tools/ (deployed from `main` by GitHub Pages)
 
 ## Features
 
@@ -22,17 +24,21 @@ Browser-based PDF tools: compare two versions of a PDF as a redline, and permane
 - After applying, the output is re-opened and checked for any leftover marked text before download
 - Two interchangeable engines, chosen with the **Engine** toggle (or `?engine=mupdf|pdfium`): **MuPDF** (AGPL) or **PDFium** via EmbedPDF + pdf-lib (Apache-2.0/MIT). Switching keeps your marks, and **Cross-check** re-verifies the output with the other engine
 
-## Requirements
+## Run locally
+
+The app is static, so the GitHub Pages site is the easiest way to use it. Running it locally adds one feature: the **Load Sample** dropdown lists your own private demo pairs from `test-documents/`.
+
+### Requirements
 
 - Python 3.9+
 
-## Setup
+### Setup
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run
+### Start
 
 ```bash
 python main.py
@@ -40,13 +46,17 @@ python main.py
 
 The app starts at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
+## Deployment
+
+`.github/workflows/pages.yml` publishes on every push to `main`. It copies `static/` into the site, lifts `index.html` and `redact.html` to the root, and deploys with GitHub Pages. No build step is needed; all page links and asset paths are relative, so the same HTML works locally and under `/pdf-tools/`.
+
 ## How it works
 
-- `main.py` — FastAPI app; serves the static frontend and sample PDF endpoints (`/api/samples/...`)
+- `main.py` — local FastAPI server: serves the static frontend and the local-only `test-documents/` demo list (`/api/samples/...`)
 - `static/` — frontend (HTML/CSS/JS) that handles PDF parsing and diffing in-browser
 - `static/js/redactEngine.js` — engine-independent redaction core (search, mark geometry, leak verification)
 - `static/js/redactMupdf.js` / `static/js/redactPdfium.js` — the two engine backends, each loaded from jsDelivr at a pinned version; `static/js/redactApp.js` is the UI
-- `create_samples.py` — generates the bundled `sample_contract_v1.pdf` / `sample_contract_v2.pdf` demo pair if they're missing
+- `static/samples/` — the bundled synthetic demo contract pair, committed so the static site has them; `create_samples.py` regenerates them
 - `test-documents/` — optional local-only folder for your own demo document pairs (gitignored, never committed); files named like `label-v1.pdf` / `label-v2.pdf` are auto-detected and listed for local comparison
 
 ## License

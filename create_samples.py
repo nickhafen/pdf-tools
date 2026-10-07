@@ -1,6 +1,10 @@
+import os
 import pymupdf
 
+SAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "samples")
+
 def create_sample_pdfs():
+    os.makedirs(SAMPLES_DIR, exist_ok=True)
     # Document 1: Original Agreement
     doc1 = pymupdf.open()
     page1 = doc1.new_page(width=612, height=792)
@@ -32,7 +36,7 @@ This Agreement shall be governed by and construed in accordance with the laws of
     # Write text to page 1
     rect1 = pymupdf.Rect(54, 54, 558, 738)
     page1.insert_textbox(rect1, text_v1, fontsize=11, fontname="helv")
-    doc1.save("sample_contract_v1.pdf")
+    doc1.save(os.path.join(SAMPLES_DIR, "sample_contract_v1.pdf"))
     doc1.close()
 
     # Document 2: Modified Agreement (with additions, deletions, and alterations)
@@ -69,9 +73,9 @@ This Agreement shall be governed by and construed in accordance with the laws of
 
     rect2 = pymupdf.Rect(54, 54, 558, 738)
     page2.insert_textbox(rect2, text_v2, fontsize=11, fontname="helv")
-    doc2.save("sample_contract_v2.pdf")
+    doc2.save(os.path.join(SAMPLES_DIR, "sample_contract_v2.pdf"))
     doc2.close()
-    print("Sample PDFs successfully created: sample_contract_v1.pdf & sample_contract_v2.pdf")
+    print(f"Sample PDFs created in {SAMPLES_DIR}")
 
 if __name__ == "__main__":
     create_sample_pdfs()

@@ -196,8 +196,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // wouldn't otherwise auto-close if it happened to be open.
     sampleDropdownMenu.classList.add("hidden");
     loadSamplePair(
-      "/api/samples/contract_v1", "sample_contract_v1.pdf",
-      "/api/samples/contract_v2", "sample_contract_v2.pdf"
+      "static/samples/sample_contract_v1.pdf", "sample_contract_v1.pdf",
+      "static/samples/sample_contract_v2.pdf", "sample_contract_v2.pdf"
     );
   });
 
@@ -264,7 +264,12 @@ document.addEventListener("DOMContentLoaded", () => {
   async function populateSampleDropdown() {
     sampleDropdownList.innerHTML = `<div class="split-dropdown-empty">Loading...</div>`;
     try {
-      const res = await fetch("/api/samples/list");
+      const res = await fetch("api/samples/list");
+      // The static GitHub Pages build has no server, so there is no list.
+      if (res.status === 404) {
+        sampleDropdownList.innerHTML = `<div class="split-dropdown-empty">Local demo documents are only available when running the app locally (python main.py).</div>`;
+        return;
+      }
       if (!res.ok) throw new Error("Could not list local demo documents.");
       const pairs = await res.json();
 
@@ -281,8 +286,8 @@ document.addEventListener("DOMContentLoaded", () => {
         item.addEventListener("click", () => {
           sampleDropdownMenu.classList.add("hidden");
           loadSamplePair(
-            `/api/samples/testdoc/${encodeURIComponent(label)}/v1`, `${label}-v1.pdf`,
-            `/api/samples/testdoc/${encodeURIComponent(label)}/v2`, `${label}-v2.pdf`
+            `api/samples/testdoc/${encodeURIComponent(label)}/v1`, `${label}-v1.pdf`,
+            `api/samples/testdoc/${encodeURIComponent(label)}/v2`, `${label}-v2.pdf`
           );
         });
         sampleDropdownList.appendChild(item);

@@ -140,7 +140,7 @@ window.addEventListener("drop", e => e.preventDefault());
 
 $("btnLoadSample").addEventListener("click", async () => {
   try {
-    const res = await fetch("/api/samples/contract_v1");
+    const res = await fetch("static/samples/sample_contract_v1.pdf");
     if (!res.ok) throw new Error("Could not retrieve the sample PDF.");
     const blob = await res.blob();
     await loadFile(new File([blob], "sample_contract_v1.pdf", { type: "application/pdf" }));
