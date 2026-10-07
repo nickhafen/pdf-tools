@@ -121,7 +121,12 @@ class DiffEngine {
         return `<h3 class="redline-heading">${headingHtml}</h3>`;
       }
 
-      const formattedLines = block.split('\n').join('<br>');
+      // Nested list items carry two leading spaces per level ("  - item"),
+      // which HTML would collapse; render them as a visible indent.
+      const formattedLines = block.split('\n')
+        .map(line => line.replace(/^((?:<[^>]+>)*)((?: {2}){1,4})/, (m, tags, spaces) =>
+          `${tags}<span class="list-indent list-indent-${spaces.length / 2}"></span>`))
+        .join('<br>');
       return `<p class="redline-paragraph">${formattedLines}</p>`;
     }).join('');
   }

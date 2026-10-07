@@ -17,21 +17,59 @@ class PDFEngine {
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
+    const rawPages = [];
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      rawPages.push({
+        textContent: await page.getTextContent(),
+        width: page.getViewport({ scale: 1 }).width
+      });
+    }
+
+    // Hyphenated compounds written mid-line anywhere in the document, so a
+    // hyphen at a line break can be told apart from word-break hyphenation.
+    const hyphenatedWords = new Set();
+    rawPages.forEach(({ textContent }) => {
+      (textContent.items || []).forEach(it => {
+        (String(it.str || "").match(/[A-Za-z]+-[A-Za-z]+/g) || [])
+          .forEach(w => hyphenatedWords.add(w.toLowerCase()));
+      });
+    });
+
+    const builtPages = rawPages.map(({ textContent, width }) =>
+      this._buildStructuredPageText(textContent, width, hyphenatedWords));
+
+    // A paragraph that runs off the bottom of a page unfinished continues
+    // in the first paragraph of the next page: move that continuation back
+    // so the paragraph stays whole and the page break falls after it.
+    let openPage = null; // page whose last block is an unfinished paragraph
+    builtPages.forEach(page => {
+      if (openPage && page.firstIsParagraph) {
+        const lastIdx = openPage.blocks.length - 1;
+        const tail = openPage.blocks[lastIdx];
+        if (this._continuesParagraph(tail, page.blocks[0])) {
+          openPage.blocks[lastIdx] = this._joinWrapped(tail, page.blocks.shift(), hyphenatedWords);
+          // A page holding only the middle of the paragraph leaves it open.
+          if (page.blocks.length === 0) {
+            if (!page.lastIsOpenParagraph) openPage = null;
+            return;
+          }
+        }
+      }
+      openPage = page.lastIsOpenParagraph && page.blocks.length > 0 ? page : null;
+    });
+
     let fullTextParts = [];
     let pagesData = [];
     let totalWords = 0;
 
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-      const page = await pdfDoc.getPage(i);
-      const textContent = await page.getTextContent();
-      const viewport = page.getViewport({ scale: 1 });
-
-      const { text: pageText, wordCount } = this._buildStructuredPageText(textContent, viewport.width);
+    builtPages.forEach((built, idx) => {
+      const pageText = built.blocks.join('\n\n');
+      const wordCount = this._countWords(pageText);
       totalWords += wordCount;
-
-      pagesData.push({ page: i, text: pageText, word_count: wordCount });
+      pagesData.push({ page: idx + 1, text: pageText, word_count: wordCount });
       fullTextParts.push(pageText);
-    }
+    });
 
     return {
       filename: file.name,
@@ -66,6 +104,48 @@ class PDFEngine {
   }
 
   /**
+   * Whether a line ends a sentence: terminal punctuation (optionally followed
+   * by a closing quote or bracket), but not an abbreviation that rarely ends
+   * one, such as the "No." in "Harlow v. Dunmore Supply Co., No. 24-0117".
+   */
+  _endsSentence(text) {
+    return /[.!?:]["')\]]?$/.test(text) &&
+      !/(?:^|[\s(])(?:No|Nos|v|vs|Mr|Mrs|Ms|Dr|cf|Cf|e\.g|i\.e|pp|para|Art|Sec)\.$/.test(text);
+  }
+
+  /**
+   * Whether `next` continues the paragraph ending in `text`, given that the
+   * last line of `text` ran to the right margin: it must not cross a sentence
+   * boundary into a capitalized line, so real paragraph breaks aren't lost.
+   */
+  _continuesParagraph(text, next) {
+    return !this._endsSentence(text) || /^[a-z]/.test(next);
+  }
+
+  /**
+   * Join a wrapped line onto the text before it. A line-end hyphen is kept
+   * ("100-mile", "store-manager") unless it splits a lowercase word that
+   * never appears hyphenated mid-line in the document, which is how
+   * word-break hyphenation ("mainte-nance") looks.
+   */
+  _joinWrapped(text, next, hyphenatedWords) {
+    if (!text.endsWith("-")) return `${text} ${next}`;
+    const left = (text.match(/([A-Za-z]+)-$/) || [])[1];
+    const right = (next.match(/^([A-Za-z]+)/) || [])[1];
+    const wordBreak = left && right && /[a-z]$/.test(left) && /^[a-z]/.test(right) &&
+      !hyphenatedWords.has(`${left}-${right}`.toLowerCase());
+    return wordBreak ? text.slice(0, -1) + next : text + next;
+  }
+
+  _countWords(text) {
+    return text
+      .replace(/^\s*(#{1,6}\s+|-\s+|\d+\.\s+)/gm, '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
+  }
+
+  /**
    * Group PDF.js text items into lines using their vertical position and
    * per-item font size, classify each line as a heading (larger than the
    * page's body text, or matching a short numbered/ALL-CAPS pattern at body
@@ -74,10 +154,15 @@ class PDFEngine {
    * "- item", blank lines between real paragraphs). This lets downstream
    * diffing/rendering preserve real document structure instead of guessing
    * from post-diff HTML.
+   *
+   * Returns the page's blocks plus whether the first block is a paragraph
+   * and the last is an unfinished one, so extractText can rejoin a
+   * paragraph split across a page break.
    */
-  _buildStructuredPageText(textContent, pageWidth) {
+  _buildStructuredPageText(textContent, pageWidth, hyphenatedWords) {
+    const EMPTY = { blocks: [], firstIsParagraph: false, lastIsOpenParagraph: false };
     const items = (textContent.items || []).filter(it => it && typeof it.str === "string");
-    if (items.length === 0) return { text: "", wordCount: 0 };
+    if (items.length === 0) return EMPTY;
 
     // Group items into lines by y-position. PDF.js marks the end of a line
     // in the source content stream via item.hasEOL.
@@ -114,18 +199,29 @@ class PDFEngine {
       })
       .filter(l => l.text.length > 0);
 
-    if (lineTexts.length === 0) return { text: "", wordCount: 0 };
+    if (lineTexts.length === 0) return EMPTY;
+
+    // Page geometry, used to tell a wrapped continuation line (of a
+    // paragraph or list item) apart from the start of a new one: the
+    // previous line must have reached near the right margin.
+    const pageLeft = Math.min(...lineTexts.map(l => l.x0));
+    const rightEdge = (pageWidth || 612) - pageLeft;
+    const fullX = rightEdge - Math.max(24, (rightEdge - pageLeft) * 0.12);
 
     // Some PDFs render a section number ("1.", "7A.") as its own text line,
     // separate from the heading title that follows on the next line. Merge
     // a bare numbering line into the line after it so the combined text can
-    // be tested as one heading candidate.
+    // be tested as one heading candidate — unless it is the wrapped end of an
+    // unfinished line ("... slip op. at" / "12.").
     const BARE_NUMBERING_PATTERN = /^[0-9]{1,3}[A-Za-z]?\.?$/;
     const mergedLines = [];
     for (let idx = 0; idx < lineTexts.length; idx++) {
       const cur = lineTexts[idx];
       const next = lineTexts[idx + 1];
-      if (next && BARE_NUMBERING_PATTERN.test(cur.text)) {
+      const prev = mergedLines[mergedLines.length - 1];
+      const wrappedTail = prev && prev.xEnd >= fullX && prev.y - cur.y > 0 &&
+        prev.y - cur.y <= cur.fontSize * 1.8 && !this._endsSentence(prev.text);
+      if (next && BARE_NUMBERING_PATTERN.test(cur.text) && !wrappedTail) {
         const sep = cur.text.endsWith('.') ? ' ' : '. ';
         mergedLines.push({
           text: `${cur.text}${sep}${next.text}`,
@@ -152,6 +248,12 @@ class PDFEngine {
     );
 
     const NUMBERED_HEADING_PATTERN = /^[0-9]+(?:\.[0-9]+)*[A-Za-z]?\.?\s+[A-Z].{0,80}$/;
+    // A numbered line that reads as a sentence ("1. Monthly rent is $1,650,
+    // due on the first day of each month.") is a list item or clause, not a
+    // heading; short titles may still end in a period ("1. Definitions.").
+    const looksLikeNumberedHeading = (text) =>
+      NUMBERED_HEADING_PATTERN.test(text) &&
+      !(/[.;,]$/.test(text) && text.split(/\s+/).length > 7);
     const ALLCAPS_HEADING_PATTERN = /^[A-Z][A-Z\s&"'\-]{4,60}$/;
     const MINOR_WORDS = new Set(["of", "and", "the", "for", "to", "in", "a", "an", "or", "&"]);
 
@@ -188,25 +290,24 @@ class PDFEngine {
       return `- ${m[2]}`;
     }
 
-    // Page geometry, used to tell a wrapped continuation line (of a
-    // paragraph or list item) apart from the start of a new one: the
-    // previous line must have reached near the right margin, and indent
-    // depth relative to pageLeft maps to list nesting at a ~36pt step.
-    const pageLeft = Math.min(...lineTexts.map(l => l.x0));
-    const rightEdge = (pageWidth || 612) - pageLeft;
-    const fullX = rightEdge - Math.max(24, (rightEdge - pageLeft) * 0.12);
-    const levelOf = (l) => Math.max(1, Math.min(5, Math.round((l.x0 - pageLeft) / 36)));
-
     let outputBlocks = [];
+    const paragraphBlocks = new Set(); // indexes of outputBlocks that are paragraphs
     let para = null; // { text, lastY, lastXEnd }
-    // List nesting base re-anchors whenever a list block starts fresh.
-    let listBase = null;
+    let lastParaOpen = false; // last flushed paragraph ran to the right margin unfinished
+    // Marker x-position of each open list nesting level (index = depth),
+    // reset whenever a list block starts fresh. Indent steps vary by
+    // producer (18pt, 24pt, 36pt...), so depth comes from comparing indents
+    // rather than from a fixed step.
+    let listIndents = [];
     let listDepth = 0;
     let lastListItem = null; // { x0, xEnd, fontSize }
+    const INDENT_TOLERANCE = 4;
 
     const flushParagraph = () => {
       if (para) {
+        paragraphBlocks.add(outputBlocks.length);
         outputBlocks.push(para.text);
+        lastParaOpen = para.lastXEnd >= fullX && !this._endsSentence(para.text);
         para = null;
       }
     };
@@ -220,7 +321,7 @@ class PDFEngine {
         line.text.length < 90 &&
         (line.fontSize > bodyFontSize * 1.12 ||
           (line.fontSize >= bodyFontSize &&
-            (NUMBERED_HEADING_PATTERN.test(line.text) ||
+            (looksLikeNumberedHeading(line.text) ||
               ALLCAPS_HEADING_PATTERN.test(line.text) ||
               looksLikeTitleCaseHeading(line.text))));
 
@@ -237,12 +338,19 @@ class PDFEngine {
       const listText = listItemText(line.text);
       if (listText) {
         flushParagraph();
-        const cont = lastBlockIsList();
-        if (!cont || listBase === null) listBase = levelOf(line);
-        // An item can nest at most one level deeper than the previous item.
-        const depth = cont
-          ? Math.max(0, Math.min(4, levelOf(line) - listBase, listDepth + 1))
-          : 0;
+        const cont = lastBlockIsList() && listIndents.length > 0;
+        let depth = 0;
+        if (!cont) {
+          listIndents = [];
+        } else if (line.x0 > listIndents[listDepth] + INDENT_TOLERANCE) {
+          // An item can nest at most one level deeper than the previous item.
+          depth = Math.min(4, listDepth + 1);
+        } else {
+          // Same level, or back out to the deepest level at or left of it.
+          while (depth < listDepth && listIndents[depth + 1] <= line.x0 + INDENT_TOLERANCE) depth++;
+        }
+        listIndents = listIndents.slice(0, depth);
+        listIndents[depth] = line.x0;
         listDepth = depth;
         const item = `${"  ".repeat(depth)}${listText}`;
         if (cont) outputBlocks[outputBlocks.length - 1] += `\n${item}`;
@@ -257,26 +365,21 @@ class PDFEngine {
       if (lastListItem && lastListItem.xEnd >= fullX && line.x0 >= lastListItem.x0 - 2 &&
           Math.abs(line.fontSize - lastListItem.fontSize) <= lastListItem.fontSize * 0.25) {
         const last = outputBlocks[outputBlocks.length - 1];
-        outputBlocks[outputBlocks.length - 1] = last.endsWith("-")
-          ? last.slice(0, -1) + line.text
-          : `${last} ${line.text}`;
+        outputBlocks[outputBlocks.length - 1] = this._joinWrapped(last, line.text, hyphenatedWords);
         lastListItem.xEnd = line.xEnd;
         return;
       }
       lastListItem = null;
 
       // Paragraph text: rejoin wrapped lines. The previous line must have
-      // reached the right margin, and the join must not cross a sentence
-      // boundary into a capitalized line — otherwise start a new paragraph
-      // so real paragraph breaks in the source aren't lost.
+      // reached the right margin and the next must continue its sentence;
+      // otherwise start a new paragraph.
       if (para) {
         const gap = para.lastY - line.y;
         const sameParagraph = gap >= 0 && gap <= line.fontSize * 1.8 && para.lastXEnd >= fullX &&
-          (!/[.!?:]["')\]]?$/.test(para.text) || /^[a-z]/.test(line.text));
+          this._continuesParagraph(para.text, line.text);
         if (sameParagraph) {
-          para.text = para.text.endsWith("-")
-            ? para.text.slice(0, -1) + line.text
-            : `${para.text} ${line.text}`;
+          para.text = this._joinWrapped(para.text, line.text, hyphenatedWords);
           para.lastY = line.y;
           para.lastXEnd = line.xEnd;
           return;
@@ -287,14 +390,12 @@ class PDFEngine {
     });
     flushParagraph();
 
-    const text = outputBlocks.join('\n\n');
-    const wordCount = text
-      .replace(/^\s*(#{1,6}\s+|-\s+|\d+\.\s+)/gm, '')
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean).length;
-
-    return { text, wordCount };
+    const lastIdx = outputBlocks.length - 1;
+    return {
+      blocks: outputBlocks,
+      firstIsParagraph: paragraphBlocks.has(0),
+      lastIsOpenParagraph: paragraphBlocks.has(lastIdx) && lastParaOpen
+    };
   }
 }
 

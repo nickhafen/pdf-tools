@@ -845,6 +845,15 @@ body.dark-theme {
   line-height: 1.85;
 }
 
+.list-indent {
+  display: inline-block;
+}
+
+.list-indent-1 { width: 1.5em; }
+.list-indent-2 { width: 3em; }
+.list-indent-3 { width: 4.5em; }
+.list-indent-4 { width: 6em; }
+
 .redline-pagebreak {
   border: none;
   border-top: 1px dashed var(--border-hover);
