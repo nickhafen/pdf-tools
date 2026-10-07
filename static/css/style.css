@@ -1,5 +1,5 @@
 /* ==========================================================================
-   REDLINE PDF PRO - DESIGN SYSTEM & CSS STYLESHEET
+   REDLINE PDF - DESIGN SYSTEM & CSS STYLESHEET
    Aesthetics: Deep Slate Glassmorphism, Modern Legaltech Redlining, Micro-animations
    ========================================================================== */
 
@@ -125,16 +125,6 @@ body.dark-theme {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.brand-badge {
-  font-size: 0.65rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #10B981, #059669);
-  color: #FFF;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.05em;
 }
 
 .brand-tagline {
@@ -272,32 +262,129 @@ body.dark-theme {
   background: var(--bg-card-hover);
 }
 
-/* TOOL NAV (switch between suite tools) */
-.tool-nav {
+/* PRODUCT SWITCHER (brand doubles as a dropdown between suite tools) */
+.product-switcher {
+  position: relative;
+}
+
+.brand-trigger {
   display: flex;
-  gap: 4px;
-  margin-left: 1.25rem;
-  background: var(--bg-surface);
-  padding: 4px;
+  align-items: center;
+  gap: 0.85rem;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 10px 4px 4px;
+  margin-left: -4px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
+  transition: background 0.15s ease;
 }
 
-.tool-nav-link {
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.35rem 0.85rem;
+.brand-trigger::-webkit-details-marker { display: none; }
+
+.brand-trigger:hover,
+.product-switcher[open] .brand-trigger {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.brand-trigger:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.brand-chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.brand-trigger:hover .brand-chevron { color: var(--text-primary); }
+.product-switcher[open] .brand-chevron { transform: rotate(180deg); }
+
+.product-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  padding: 0 0.4rem 0.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 150;
+}
+
+.product-menu-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0.7rem 0.5rem 0.4rem;
+}
+
+.product-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.5rem;
   border-radius: var(--radius-sm);
-}
-
-.tool-nav-link:hover { color: var(--text-primary); }
-
-.tool-nav-link.active {
-  background: var(--bg-card-hover);
   color: var(--text-primary);
+  text-decoration: none;
+  transition: background 0.15s ease;
 }
+
+.product-menu-item:hover,
+.product-menu-item:focus-visible {
+  background: var(--bg-card-hover);
+  outline: none;
+}
+
+.product-menu-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFF;
+}
+
+.product-menu-icon svg { width: 17px; height: 17px; }
+.product-menu-icon.compare { background: linear-gradient(135deg, #3B82F6, #1D4ED8); }
+.product-menu-icon.redact { background: linear-gradient(135deg, #EF4444, #B91C1C); }
+
+.product-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.product-menu-name {
+  font-family: var(--font-heading);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.product-menu-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.product-menu-check {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--accent-primary);
+  visibility: hidden;
+}
+
+.product-menu-item.active .product-menu-check { visibility: visible; }
 
 /* SPLIT BUTTON (Load Sample Demo + dropdown) */
 .split-button {

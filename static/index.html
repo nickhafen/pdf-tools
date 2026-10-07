@@ -36,19 +36,36 @@
 
   <!-- STICKY TOP MENU: ROW 1 (brand + primary actions) -->
   <header class="app-header">
-    <div class="header-brand">
-      <div class="brand-icon">
-        <i data-lucide="file-diff"></i>
+    <details class="header-brand product-switcher" id="productSwitcher">
+      <summary class="brand-trigger" aria-haspopup="menu" title="Switch tool">
+        <div class="brand-icon">
+          <i data-lucide="file-diff"></i>
+        </div>
+        <div class="brand-text">
+          <h1>RedlinePDF <i data-lucide="chevron-down" class="brand-chevron"></i></h1>
+          <p class="brand-tagline">PDF Text Extraction & Legal Redline Suite</p>
+        </div>
+      </summary>
+      <div class="product-menu" role="menu" aria-label="Tools">
+        <div class="product-menu-header">Switch tool</div>
+          <a href="./" class="product-menu-item active" role="menuitem" aria-current="page">
+            <span class="product-menu-icon compare"><i data-lucide="file-diff"></i></span>
+            <span class="product-menu-text">
+              <span class="product-menu-name">RedlinePDF</span>
+              <span class="product-menu-desc">Compare two PDFs and generate a legal redline</span>
+            </span>
+            <i data-lucide="check" class="product-menu-check"></i>
+          </a>
+          <a href="redact.html" class="product-menu-item" role="menuitem">
+            <span class="product-menu-icon redact"><i data-lucide="square-dashed-mouse-pointer"></i></span>
+            <span class="product-menu-text">
+              <span class="product-menu-name">RedactPDF</span>
+              <span class="product-menu-desc">Permanently redact text, images, and metadata</span>
+            </span>
+            <i data-lucide="check" class="product-menu-check"></i>
+          </a>
       </div>
-      <div class="brand-text">
-        <h1>RedlinePDF <span class="brand-badge">PRO</span></h1>
-        <p class="brand-tagline">PDF Text Extraction & Legal Redline Suite</p>
-      </div>
-      <nav class="tool-nav" aria-label="Tools">
-        <a href="./" class="tool-nav-link active" aria-current="page">Compare</a>
-        <a href="redact.html" class="tool-nav-link">Redact</a>
-      </nav>
-    </div>
+    </details>
 
     <div class="header-actions">
       <div class="split-button" id="sampleSplitButton">
@@ -403,6 +420,7 @@
   <script src="static/js/pdfEngine.js"></script>
   <script src="static/js/diffEngine.js"></script>
   <script src="static/js/exportUtil.js"></script>
+  <script src="static/js/productSwitcher.js"></script>
   <script src="static/js/app.js"></script>
 
 </body>

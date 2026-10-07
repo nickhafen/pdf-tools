@@ -18,19 +18,36 @@
 <body class="dark-theme">
 
   <header class="app-header">
-    <div class="header-brand">
-      <div class="brand-icon redact">
-        <i data-lucide="square-dashed-mouse-pointer"></i>
+    <details class="header-brand product-switcher" id="productSwitcher">
+      <summary class="brand-trigger" aria-haspopup="menu" title="Switch tool">
+        <div class="brand-icon redact">
+          <i data-lucide="square-dashed-mouse-pointer"></i>
+        </div>
+        <div class="brand-text">
+          <h1>RedactPDF <i data-lucide="chevron-down" class="brand-chevron"></i></h1>
+          <p class="brand-tagline">True redaction, entirely in your browser</p>
+        </div>
+      </summary>
+      <div class="product-menu" role="menu" aria-label="Tools">
+        <div class="product-menu-header">Switch tool</div>
+          <a href="./" class="product-menu-item" role="menuitem">
+            <span class="product-menu-icon compare"><i data-lucide="file-diff"></i></span>
+            <span class="product-menu-text">
+              <span class="product-menu-name">RedlinePDF</span>
+              <span class="product-menu-desc">Compare two PDFs and generate a legal redline</span>
+            </span>
+            <i data-lucide="check" class="product-menu-check"></i>
+          </a>
+          <a href="redact.html" class="product-menu-item active" role="menuitem" aria-current="page">
+            <span class="product-menu-icon redact"><i data-lucide="square-dashed-mouse-pointer"></i></span>
+            <span class="product-menu-text">
+              <span class="product-menu-name">RedactPDF</span>
+              <span class="product-menu-desc">Permanently redact text, images, and metadata</span>
+            </span>
+            <i data-lucide="check" class="product-menu-check"></i>
+          </a>
       </div>
-      <div class="brand-text">
-        <h1>RedactPDF</h1>
-        <p class="brand-tagline">True redaction, entirely in your browser</p>
-      </div>
-      <nav class="tool-nav" aria-label="Tools">
-        <a href="./" class="tool-nav-link">Compare</a>
-        <a href="redact.html" class="tool-nav-link active" aria-current="page">Redact</a>
-      </nav>
-    </div>
+    </details>
 
     <div class="header-actions">
       <div class="segmented-control engine-toggle" id="engineToggle" role="group" aria-label="Redaction engine"
@@ -220,6 +237,7 @@
     </div>
   </div>
 
+  <script src="static/js/productSwitcher.js"></script>
   <script type="module" src="static/js/redactApp.js"></script>
 </body>
 </html>

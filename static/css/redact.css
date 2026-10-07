@@ -431,7 +431,6 @@ kbd {
   .redact-workspace { grid-template-columns: 1fr; }
   .redact-sidebar { position: static; max-height: none; }
   .result-banner { flex-direction: column; }
-  .tool-nav { margin-left: 0.5rem; }
   .brand-tagline { display: none; }
   .app-header { height: auto; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem 1rem; }
   .header-actions { flex-wrap: wrap; }
