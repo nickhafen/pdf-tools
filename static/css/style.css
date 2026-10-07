@@ -272,6 +272,33 @@ body.dark-theme {
   background: var(--bg-card-hover);
 }
 
+/* TOOL NAV (switch between suite tools) */
+.tool-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 1.25rem;
+  background: var(--bg-surface);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.tool-nav-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-sm);
+}
+
+.tool-nav-link:hover { color: var(--text-primary); }
+
+.tool-nav-link.active {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
 /* SPLIT BUTTON (Load Sample Demo + dropdown) */
 .split-button {
   position: relative;

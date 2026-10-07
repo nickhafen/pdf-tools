@@ -1,8 +1,10 @@
 # PDF Redline & Comparison Suite
 
-A browser-based tool for comparing two versions of a PDF and viewing a redline-style diff. All text extraction and diffing happens client-side in the browser — the FastAPI backend only serves static files and sample/demo PDFs, so uploaded documents never leave your machine.
+Browser-based PDF tools: compare two versions of a PDF as a redline, and permanently redact sensitive content. All document processing happens client-side in the browser — the FastAPI backend only serves static files and sample/demo PDFs, so uploaded documents never leave your machine.
 
 ## Features
+
+### Compare (`/`)
 
 - Side-by-side or single-pane comparison of two PDF versions
 - Client-side text extraction and redline diffing (insertions/deletions highlighted)
@@ -10,6 +12,15 @@ A browser-based tool for comparing two versions of a PDF and viewing a redline-s
 - Adjustable text size
 - Export the redline comparison to PDF
 - Bundled sample contract pair for a quick demo, no upload required
+
+### Redact (`/redact`)
+
+- True redaction: marked text is deleted from the PDF's content streams, image pixels under a box are blanked, and covered vector art is removed (not just covered with a black box)
+- Mark by search (plain text or regex, with presets for SSNs, emails, phone and card numbers) or by drawing boxes; click a mark to drop it, Ctrl+Z to undo
+- Comments, stamps, and form fields are flattened first so their text can be found and redacted; redaction marks left unapplied by other tools are detected and applied
+- Strips metadata, attachments, JavaScript, bookmarks, thumbnails, and earlier saved revisions
+- After applying, the output is re-opened and checked for any leftover marked text before download
+- Two interchangeable engines, chosen with the **Engine** toggle (or `?engine=mupdf|pdfium`): **MuPDF** (AGPL) or **PDFium** via EmbedPDF + pdf-lib (Apache-2.0/MIT). Switching keeps your marks, and **Cross-check** re-verifies the output with the other engine
 
 ## Requirements
 
@@ -33,9 +44,13 @@ The app starts at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 - `main.py` — FastAPI app; serves the static frontend and sample PDF endpoints (`/api/samples/...`)
 - `static/` — frontend (HTML/CSS/JS) that handles PDF parsing and diffing in-browser
+- `static/js/redactEngine.js` — engine-independent redaction core (search, mark geometry, leak verification)
+- `static/js/redactMupdf.js` / `static/js/redactPdfium.js` — the two engine backends, each loaded from jsDelivr at a pinned version; `static/js/redactApp.js` is the UI
 - `create_samples.py` — generates the bundled `sample_contract_v1.pdf` / `sample_contract_v2.pdf` demo pair if they're missing
 - `test-documents/` — optional local-only folder for your own demo document pairs (gitignored, never committed); files named like `label-v1.pdf` / `label-v2.pdf` are auto-detected and listed for local comparison
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+This project's code is MIT — see [LICENSE](LICENSE).
+
+Third-party components keep their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). In particular, the Redact tool's **MuPDF** engine is MuPDF.js by Artifex Software, licensed under the GNU AGPL v3. Distributing or hosting the app with that engine is subject to the AGPL for the combined program, including keeping the complete source available. The **PDFium** engine path uses only Apache-2.0 and MIT components.

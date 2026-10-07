@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Redaction</title>
+  <meta name="description" content="Permanently redact text, images, and metadata from PDFs, entirely in your browser.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/redact.css">
+</head>
+<body class="dark-theme">
+
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon redact">
+        <i data-lucide="square-dashed-mouse-pointer"></i>
+      </div>
+      <div class="brand-text">
+        <h1>RedactPDF</h1>
+        <p class="brand-tagline">True redaction, entirely in your browser</p>
+      </div>
+      <nav class="tool-nav" aria-label="Tools">
+        <a href="/" class="tool-nav-link">Compare</a>
+        <a href="/redact" class="tool-nav-link active" aria-current="page">Redact</a>
+      </nav>
+    </div>
+
+    <div class="header-actions">
+      <div class="segmented-control engine-toggle" id="engineToggle" role="group" aria-label="Redaction engine"
+           title="Which PDF engine performs the redaction. Switching keeps your marks.">
+        <span class="engine-toggle-label">Engine</span>
+        <button class="segment-btn" data-engine="mupdf" title="MuPDF (AGPL-3.0)">MuPDF</button>
+        <button class="segment-btn" data-engine="pdfium" title="PDFium via EmbedPDF + pdf-lib (Apache-2.0 / MIT)">PDFium</button>
+      </div>
+      <button class="btn btn-outline" id="btnLoadSample" title="Load the sample contract">
+        <i data-lucide="sparkles"></i>
+        <span>Load Sample</span>
+      </button>
+      <button class="btn btn-outline hidden" id="btnReset" title="Start over with a different PDF">
+        <i data-lucide="rotate-ccw"></i>
+        <span>Reset</span>
+      </button>
+      <button class="btn btn-outline" id="btnShowHelp" title="How redaction works, privacy, and limitations">
+        <i data-lucide="info"></i>
+        <span>Info</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- UPLOAD -->
+    <section class="upload-section" id="uploadSection">
+      <div class="dropzone-card redact-dropzone" id="dropzone">
+        <div class="dropzone-content">
+          <div class="dropzone-icon">
+            <i data-lucide="file-lock-2"></i>
+          </div>
+          <h3>Upload a PDF to redact</h3>
+          <p>Drag & drop a PDF here. It is processed on this device and never uploaded.</p>
+          <input type="file" id="fileInput" accept="application/pdf" class="file-input">
+          <button class="btn btn-secondary btn-select">Select File</button>
+        </div>
+      </div>
+      <p class="engine-status" id="engineStatus">Loading redaction engine…</p>
+    </section>
+
+    <!-- WORKSPACE -->
+    <section class="redact-workspace hidden" id="workspace">
+
+      <aside class="redact-sidebar">
+        <div class="sidebar-file">
+          <i data-lucide="file-text"></i>
+          <div>
+            <div class="file-name" id="docName">--</div>
+            <div class="file-size" id="docInfo">--</div>
+          </div>
+        </div>
+
+        <div class="notice warn hidden" id="scanNotice">
+          <i data-lucide="scan-line"></i>
+          <span>No selectable text was found, so this looks like a scanned document. Search can't find anything; draw boxes by hand instead. Image pixels under each box are removed.</span>
+        </div>
+
+        <div class="notice hidden" id="pendingNotice">
+          <i data-lucide="alert-triangle"></i>
+          <span id="pendingNoticeText"></span>
+        </div>
+
+        <div class="sidebar-section">
+          <h4>Find &amp; mark</h4>
+          <form class="search-row" id="searchForm">
+            <input type="text" id="searchInput" placeholder="Name, number, phrase…" autocomplete="off">
+            <button class="btn btn-secondary" type="submit">Mark</button>
+          </form>
+          <div class="search-options">
+            <label><input type="checkbox" id="optRegex"> Regex</label>
+            <label><input type="checkbox" id="optCase"> Match case</label>
+          </div>
+          <div class="preset-row" id="presetRow"></div>
+          <p class="search-feedback" id="searchFeedback"></p>
+        </div>
+
+        <div class="sidebar-section">
+          <h4>Draw boxes</h4>
+          <p class="hint">Drag on any page to mark an area (text, images, or signatures). Click a mark to remove it. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes the last change.</p>
+        </div>
+
+        <div class="sidebar-section">
+          <h4>Marked for redaction <span class="count-badge" id="markCount">0</span></h4>
+          <ul class="mark-list" id="markList"></ul>
+        </div>
+
+        <div class="sidebar-section">
+          <h4>Also remove</h4>
+          <label class="check-row"><input type="checkbox" data-sanitize="metadata" checked> Document metadata (title, author, XMP)</label>
+          <label class="check-row"><input type="checkbox" data-sanitize="attachments" checked> Embedded file attachments</label>
+          <label class="check-row"><input type="checkbox" data-sanitize="scripts" checked> JavaScript &amp; auto-run actions</label>
+          <label class="check-row"><input type="checkbox" data-sanitize="bookmarks" checked> Bookmarks (titles can repeat redacted text)</label>
+          <p class="hint">Comments, stamps, and form fields are always flattened into the page so they can be searched and redacted. Thumbnails and earlier saved revisions are always removed.</p>
+        </div>
+
+        <button class="btn btn-danger btn-apply" id="btnApply" disabled>
+          <i data-lucide="eraser"></i>
+          <span>Apply redactions</span>
+        </button>
+      </aside>
+
+      <div class="redact-pages" id="pages"></div>
+    </section>
+
+    <!-- RESULT -->
+    <section class="redact-result hidden" id="resultSection">
+      <div class="result-banner" id="resultBanner">
+        <div class="result-icon" id="resultIcon"></div>
+        <div class="result-text">
+          <h3 id="resultTitle"></h3>
+          <p id="resultSummary"></p>
+          <ul class="result-problems" id="resultProblems"></ul>
+          <p class="result-engine" id="resultEngine"></p>
+          <p class="cross-check-result" id="crossCheckResult" aria-live="polite"></p>
+        </div>
+        <div class="result-actions">
+          <button class="btn btn-outline" id="btnCrossCheck" title="Re-open the output with the other engine and run its leak check">
+            <i data-lucide="scan-search"></i>
+            <span>Cross-check</span>
+          </button>
+          <button class="btn btn-outline" id="btnBackToEdit">
+            <i data-lucide="pencil"></i>
+            <span>Back to editing</span>
+          </button>
+          <button class="btn btn-primary" id="btnDownload">
+            <i data-lucide="download"></i>
+            <span>Download redacted PDF</span>
+          </button>
+        </div>
+      </div>
+      <p class="result-caption">Preview of the redacted file, re-opened from the bytes you will download:</p>
+      <div class="redact-pages result-pages" id="resultPages"></div>
+    </section>
+
+    <div class="loading-overlay hidden" id="loadingOverlay">
+      <div class="spinner-box">
+        <div class="spinner"></div>
+        <h3 id="loadingStatusText">Working…</h3>
+      </div>
+    </div>
+  </main>
+
+  <!-- HELP MODAL -->
+  <div class="modal-backdrop hidden" id="helpModal">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <h3><i data-lucide="info"></i> Info</h3>
+        <button class="btn-icon" id="btnCloseHelpModal"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="help-section">
+          <h4><i data-lucide="mouse-pointer-click"></i> How to use it</h4>
+          <p>Upload a PDF, then mark what to remove: type a name or phrase and click <strong>Mark</strong>, use a preset (SSNs, emails, phone numbers), or drag a box over any area. Review the black marks on each page and click any mark to drop it. Click <strong>Apply redactions</strong>. The tool builds the redacted file, re-opens it, checks that nothing marked can still be found, and then lets you download it.</p>
+        </div>
+        <div class="help-section">
+          <h4><i data-lucide="shield-check"></i> What "true redaction" means here</h4>
+          <ul>
+            <li>Marked text is deleted from the PDF's content, not just covered, so it can't be copied, searched, or recovered by removing the box.</li>
+            <li>Image pixels under a box are blanked, and vector drawings fully covered by a box (for example, signatures) are removed.</li>
+            <li>The file is rewritten from scratch, so earlier saved revisions and unused objects holding the original content are dropped.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h4><i data-lucide="lock"></i> Privacy</h4>
+          <p>Redaction runs in your browser using a PDF engine compiled to WebAssembly. The engine's code is downloaded from the jsDelivr CDN at a fixed version; your document is never uploaded anywhere.</p>
+        </div>
+        <div class="help-section">
+          <h4><i data-lucide="triangle-alert"></i> Limitations</h4>
+          <ul>
+            <li>Search only finds text the PDF actually contains. Scanned pages need boxes drawn by hand (OCR is on the roadmap), and text baked into images, such as logos and screenshots, won't be found by search.</li>
+            <li>A search for a name won't catch variations ("J. Smith", "Smith's", initials). Always review every page before applying.</li>
+            <li>Comments, form fields, and stamps are flattened into the page, so the output is no longer a fillable form.</li>
+            <li>The automatic check confirms that marked text was removed. It does not prove that nothing sensitive was missed.</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h4><i data-lucide="cpu"></i> Engines</h4>
+          <p>Choose the engine with the <strong>Engine</strong> toggle at the top. Switching reopens the document and keeps your marks. After applying, <strong>Cross-check</strong> re-opens the output with the other engine and runs its leak check as well.</p>
+          <ul>
+            <li><strong>MuPDF</strong>: <a href="https://mupdf.com" target="_blank" rel="noopener">MuPDF.js</a> by Artifex Software, licensed under the <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">GNU AGPL v3</a>. Source: <a href="https://github.com/ArtifexSoftware/mupdf.js" target="_blank" rel="noopener">github.com/ArtifexSoftware/mupdf.js</a>.</li>
+            <li><strong>PDFium</strong>: Google's <a href="https://pdfium.googlesource.com/pdfium/" target="_blank" rel="noopener">PDFium</a> (Apache-2.0) as built by <a href="https://www.embedpdf.com" target="_blank" rel="noopener">EmbedPDF</a> (MIT), plus <a href="https://pdf-lib.js.org" target="_blank" rel="noopener">pdf-lib</a> (MIT) to clean up document structure. Known difference: text inside a reusable page fragment (form XObject) that touches a redaction box can be removed in full rather than just the marked words.</li>
+          </ul>
+          <p>This app's own code is MIT-licensed and its source is public. When the MuPDF engine is used, the combined program is covered by the AGPL. See the project's <code>THIRD_PARTY_NOTICES.md</code> for every component and license.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/redactApp.js"></script>
+</body>
+</html>
