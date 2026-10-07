@@ -33,12 +33,23 @@ class DiffEngine {
     // document, but the same diff-id can legitimately appear more than once.
     const emit = (token, groupId, suffix) => {
       const diffId = `${groupId}${suffix}`;
-      const esc = this._escapeHtml(token.text);
-      if (token.op === "INSERT") {
-        rawHtml += `<ins class="diff-ins" data-diff-id="${diffId}" data-group="${groupId}">${esc}</ins>`;
-      } else {
-        rawHtml += `<del class="diff-del" data-diff-id="${diffId}" data-group="${groupId}">${esc}</del>`;
-      }
+      const tag = token.op === "INSERT" ? "ins" : "del";
+      const cls = token.op === "INSERT" ? "diff-ins" : "diff-del";
+      // A single diff token can span multiple paragraphs (blank-line gaps in
+      // the source text). Wrapping the whole thing in one tag would leave an
+      // unbalanced <ins>/<del> once _formatStructuredDocument splits rawHtml
+      // into blocks on those same blank lines — the interior paragraphs
+      // would lose their tag and render unstyled. Splitting the tag around
+      // each gap keeps every paragraph its own self-contained element.
+      const segments = token.text.split(/(\n\s*\n)/);
+      segments.forEach(seg => {
+        if (!seg) return;
+        if (/^\n\s*\n$/.test(seg)) {
+          rawHtml += seg;
+        } else {
+          rawHtml += `<${tag} class="${cls}" data-diff-id="${diffId}" data-group="${groupId}">${this._escapeHtml(seg)}</${tag}>`;
+        }
+      });
       return diffId;
     };
 
