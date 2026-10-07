@@ -427,9 +427,13 @@ body.dark-theme {
 }
 
 .split-dropdown-list {
-  max-height: 220px;
+  max-height: 360px;
   overflow-y: auto;
-  padding: 0 0.4rem;
+  padding: 0 0.4rem 0.4rem;
+}
+
+.split-dropdown-list .split-dropdown-header {
+  padding: 0.7rem 0.6rem 0.3rem;
 }
 
 .split-dropdown-item {
@@ -449,6 +453,13 @@ body.dark-theme {
 .split-dropdown-item:hover {
   background: var(--bg-card-hover);
   color: var(--accent-primary);
+}
+
+.split-dropdown-item-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .split-dropdown-empty {

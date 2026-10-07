@@ -69,19 +69,18 @@
 
     <div class="header-actions">
       <div class="split-button" id="sampleSplitButton">
-        <button class="btn btn-outline split-btn-main" id="btnLoadSample" title="Load the public sample contracts">
+        <button class="btn btn-outline split-btn-main" id="btnLoadSample" title="Load the sample contract pair">
           <i data-lucide="sparkles"></i>
           <span>Load Sample</span>
         </button>
-        <button class="btn btn-outline split-btn-arrow" id="btnSampleDropdownToggle" title="Choose a demo document pair">
+        <button class="btn btn-outline split-btn-arrow" id="btnSampleDropdownToggle" title="Choose a sample document pair">
           <i data-lucide="chevron-down"></i>
         </button>
         <div class="split-dropdown-menu hidden" id="sampleDropdownMenu">
-          <div class="split-dropdown-header">Local Demo Documents</div>
           <div class="split-dropdown-list" id="sampleDropdownList">
             <div class="split-dropdown-empty">Loading...</div>
           </div>
-          <div class="split-dropdown-footer">Add your own pairs to <code>test-documents/</code> named e.g. <code>mydoc-v1.pdf</code> / <code>mydoc-v2.pdf</code>. That folder stays local and is never committed to Git.</div>
+          <div class="split-dropdown-footer hidden" id="sampleDropdownFooter">Add your own pairs to <code>test-documents/</code> named e.g. <code>mydoc-v1.pdf</code> / <code>mydoc-v2.pdf</code>. That folder stays local and is never committed to Git.</div>
         </div>
       </div>
 

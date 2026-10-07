@@ -13,7 +13,7 @@ Browser-based PDF tools: compare two versions of a PDF as a redline, and permane
 - Independent per-pane document pickers, with swap and reset controls
 - Adjustable text size
 - Export the redline comparison to PDF
-- Bundled sample contract pair for a quick demo, no upload required
+- Bundled sample document pairs (contract, NDA, legal memo, lease) for a quick demo, no upload required; **Load Sample** opens the contract, and its dropdown lists the rest
 
 ### Redact (`/redact`)
 
@@ -26,7 +26,7 @@ Browser-based PDF tools: compare two versions of a PDF as a redline, and permane
 
 ## Run locally
 
-The app is static, so the GitHub Pages site is the easiest way to use it. Running it locally adds one feature: the **Load Sample** dropdown lists your own private demo pairs from `test-documents/`.
+The app is static, so the GitHub Pages site is the easiest way to use it. Running it locally adds one feature: the **Load Sample** dropdown also lists your own private demo pairs from `test-documents/`.
 
 ### Requirements
 
@@ -56,7 +56,7 @@ The app starts at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 - `static/` — frontend (HTML/CSS/JS) that handles PDF parsing and diffing in-browser
 - `static/js/redactEngine.js` — engine-independent redaction core (search, mark geometry, leak verification)
 - `static/js/redactMupdf.js` / `static/js/redactPdfium.js` — the two engine backends, each loaded from jsDelivr at a pinned version; `static/js/redactApp.js` is the UI
-- `static/samples/` — the bundled synthetic demo contract pair, committed so the static site has them; `create_samples.py` regenerates them
+- `static/samples/` — the bundled synthetic demo pairs and their `manifest.json`, committed so the static site has them; `create_samples.py` regenerates them (add a pair there to add it to the dropdown)
 - `test-documents/` — optional local-only folder for your own demo document pairs (gitignored, never committed); files named like `label-v1.pdf` / `label-v2.pdf` are auto-detected and listed for local comparison
 
 ## License

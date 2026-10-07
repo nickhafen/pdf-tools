@@ -17,20 +17,20 @@ TEST_DOCS_DIR = os.path.join(BASE_DIR, "test-documents")
 SAMPLE_FILENAME_RE = re.compile(r"^(?P<label>.+?)[-_ ]*v(?P<version>[12])\.pdf$", re.IGNORECASE)
 
 # ==============================================================================
-# PUBLIC SAMPLE CONTRACTS (bundled demo in static/samples/, committed so the
+# PUBLIC SAMPLE DOCUMENTS (bundled demo pairs in static/samples/, committed so the
 # static GitHub Pages build has them; regenerated here only if missing)
 # ==============================================================================
 
 SAMPLES_DIR = os.path.join(BASE_DIR, "static", "samples")
 
 def _ensure_public_samples():
-    paths = [os.path.join(SAMPLES_DIR, f"sample_contract_v{v}.pdf") for v in (1, 2)]
-    if not all(os.path.exists(p) for p in paths):
-        try:
-            from create_samples import create_sample_pdfs
+    try:
+        from create_samples import SAMPLES, create_sample_pdfs, sample_filename
+        names = ["manifest.json"] + [sample_filename(s["id"], v) for s in SAMPLES for v in ("v1", "v2")]
+        if not all(os.path.exists(os.path.join(SAMPLES_DIR, n)) for n in names):
             create_sample_pdfs()
-        except Exception as e:
-            print("Error auto-generating samples:", e)
+    except Exception as e:
+        print("Error auto-generating samples:", e)
 
 _ensure_public_samples()
 

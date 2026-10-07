@@ -1,0 +1,30 @@
+[
+  {
+    "id": "sample_contract",
+    "title": "Master Services Agreement",
+    "description": "One-page contract: new parties, fees, and an added section",
+    "v1": "sample_contract_v1.pdf",
+    "v2": "sample_contract_v2.pdf"
+  },
+  {
+    "id": "nda",
+    "title": "Mutual NDA",
+    "description": "Renamed defined terms, inserted sections, renumbering",
+    "v1": "nda_v1.pdf",
+    "v2": "nda_v2.pdf"
+  },
+  {
+    "id": "legal_memo",
+    "title": "Legal Memorandum",
+    "description": "Multi-page prose: rewritten analysis, moved section",
+    "v1": "legal_memo_v1.pdf",
+    "v2": "legal_memo_v2.pdf"
+  },
+  {
+    "id": "lease",
+    "title": "Residential Lease",
+    "description": "Nested lists, changed amounts, a replaced section",
+    "v1": "lease_v1.pdf",
+    "v2": "lease_v2.pdf"
+  }
+]
