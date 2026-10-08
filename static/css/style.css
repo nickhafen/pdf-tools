@@ -117,6 +117,16 @@ body.dark-theme {
   box-shadow: var(--shadow-glow);
 }
 
+.brand-suite {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
 .brand-text h1 {
   font-family: var(--font-heading);
   font-size: 1.25rem;
@@ -125,11 +135,6 @@ body.dark-theme {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.brand-tagline {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
 }
 
 /* STATS MODAL */
