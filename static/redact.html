@@ -12,6 +12,19 @@
 
   <script src="https://unpkg.com/lucide@1.47.0/dist/umd/lucide.min.js" integrity="sha384-v15JX+vZHMR3T6LQR9N6e6wIKrKOdNTbdj8j+e5irqq3L9gCauJz2vGlUzomWyUp" crossorigin="anonymous"></script>
 
+  <!-- SRI for the redaction engines' ES modules, which load via import().
+       Their .wasm files are checked in redactMupdf.js / redactPdfium.js. -->
+  <script type="importmap">
+  {
+    "integrity": {
+      "https://cdn.jsdelivr.net/npm/mupdf@1.28.1/dist/mupdf.js": "sha384-71k4B3TsupnG9S07SGbCJQJAHD3cp7jFEnzAzgr+31fio+f3KHZoCJXUAsvT2HoY",
+      "https://cdn.jsdelivr.net/npm/mupdf@1.28.1/dist/mupdf-wasm.js": "sha384-rEJ8zHkkLXk/h9MHYnUcbyVEB6mpmR7aAv8a8wgt0sWvMTzYxPNd5tIro3WpCMhs",
+      "https://cdn.jsdelivr.net/npm/@embedpdf/pdfium@2.15.1/dist/index.browser.js": "sha384-o8Dn8ioVE0jXPi1PMvUswoqzyrKluWxNM1FiVDoPEIDLCQDuZ0P4b8hamukqlzWU",
+      "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js": "sha384-zLjz0wyamZ9fUxTFyrzCYwGprnweF4gGevYdGIw/bptum5NQvuZPNHFx/ItkRseg"
+    }
+  }
+  </script>
+
   <link rel="stylesheet" href="static/css/style.css">
   <link rel="stylesheet" href="static/css/redact.css">
 </head>

@@ -14,6 +14,7 @@ class PDFEngine {
       throw new Error("PDF.js library is not loaded");
     }
 
+    await window.pdfWorkerReady;
     const arrayBuffer = await file.arrayBuffer();
     const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 

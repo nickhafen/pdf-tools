@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This project's own source code is licensed under the MIT License (see [LICENSE](LICENSE)). It uses the third-party components below, each under its own license. None of them is copied into this repository: the browser libraries are loaded at runtime from the jsDelivr CDN at the pinned versions listed, and the Python packages are installed from `requirements.txt`.
+This project's own source code is licensed under the MIT License (see [LICENSE](LICENSE)). It uses the third-party components below, each under its own license. Except for diff-match-patch, none of them is copied into this repository: the browser libraries are loaded at runtime from CDNs (jsDelivr, cdnjs, unpkg) at the pinned versions listed, and the Python packages are installed from `requirements.txt`.
 
 ## Redaction engines (Redact tool, `/redact`)
 
@@ -30,9 +30,9 @@ This project's own files remain under the MIT License. The **PDFium** engine pat
 
 ## Shared
 
-| Component | License | Source |
-|---|---|---|
-| Lucide icons | ISC | https://github.com/lucide-icons/lucide |
+| Component | Version | License | Source |
+|---|---|---|---|
+| Lucide icons | 1.47.0 | ISC | https://github.com/lucide-icons/lucide |
 | Inter, Outfit, JetBrains Mono fonts (Google Fonts) | SIL Open Font License 1.1 | https://fonts.google.com |
 
 ## Server and tooling (Python)

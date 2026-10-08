@@ -59,6 +59,48 @@ The app starts at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 - `static/samples/` — the bundled synthetic demo pairs and their `manifest.json`, committed so the static site has them; `create_samples.py` regenerates them (add a pair there to add it to the dropdown)
 - `test-documents/` — optional local-only folder for your own demo document pairs (gitignored, never committed); files named like `label-v1.pdf` / `label-v2.pdf` are auto-detected and listed for local comparison
 
+## Maintenance
+
+The browser libraries are loaded from CDNs at pinned versions, each with a Subresource Integrity (SRI) hash, so the browser refuses a file whose contents don't match. A version bump therefore means updating the URL **and** its hash together, or that library stops loading.
+
+| Library | Version | URL and hash live in |
+|---|---|---|
+| PDF.js + worker | 3.11.174 | `static/index.html` (worker is fetched with SRI in the inline script) |
+| html2canvas | 1.4.1 | `static/index.html` |
+| jsPDF | 2.5.1 | `static/index.html` |
+| Lucide icons | 1.47.0 | `static/index.html`, `static/redact.html` |
+| MuPDF.js | 1.28.1 | JS modules: import map in `static/redact.html`; `.wasm`: `static/js/redactMupdf.js` |
+| @embedpdf/pdfium | 2.15.1 | JS module: import map in `static/redact.html`; `.wasm`: `static/js/redactPdfium.js` |
+| pdf-lib | 1.17.1 | URL: `static/js/redactPdfium.js`; hash: import map in `static/redact.html` |
+| Google Fonts | n/a | `static/index.html`, `static/redact.html` (no SRI possible; the CSS varies by browser) |
+
+To compute a hash for a new file:
+
+```bash
+curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A
+```
+
+Prefix the output with `sha384-`.
+
+### Checklist
+
+Run through this monthly, and whenever a security advisory lands for one of the libraries above.
+
+- [ ] **Security advisories.** Check each library's GitHub security advisories (or [GitHub Advisory Database](https://github.com/advisories) / [Snyk](https://security.snyk.io/)). PDF.js, MuPDF, and PDFium matter most, since they parse untrusted PDFs.
+- [ ] **New releases.** Check each library for a newer version. Prefer a release that has been out at least two weeks over one published days ago.
+- [ ] **When bumping a library:**
+  - [ ] Update the version in every URL that references it (table above).
+  - [ ] Recompute and replace the SRI hash for every file of that library, including `.wasm` files and the PDF.js worker.
+  - [ ] For MuPDF and PDFium, load the Redact page with each engine and check the browser's network tab for CDN files that aren't in the import map (a release can rename or add internal modules).
+  - [ ] For Lucide, confirm every icon still renders; a renamed icon silently renders nothing.
+  - [ ] Update the version in `THIRD_PARTY_NOTICES.md` and re-check the license.
+  - [ ] Test: run a Compare on a sample pair, export the redline PDF, and redact a document with both engines (plus **Cross-check**). Watch the console for integrity errors.
+- [ ] **GitHub Actions.** Check `.github/workflows/pages.yml` for new major versions of the `actions/*` steps.
+- [ ] **Python packages** (local server only). `requirements.txt` uses minimum versions; run `pip install -U -r requirements.txt` and confirm `python main.py` still serves both tools.
+- [ ] **Live site.** After the deploy finishes, open both tools on the live site and check the console for errors.
+
+Import-map integrity (the JS modules of the redaction engines) is enforced in Chrome/Edge 127+, Firefox 138+, and Safari 18+. Older browsers still load those modules, just without the hash check; the `.wasm` files are checked in every browser.
+
 ## License
 
 This project's code is MIT — see [LICENSE](LICENSE).

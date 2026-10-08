@@ -13,6 +13,9 @@ import { rectsByPage, METADATA_FIELDS } from "./redactEngine.js";
 
 export const PDFIUM_URL = "https://cdn.jsdelivr.net/npm/@embedpdf/pdfium@2.15.1/dist/index.browser.js";
 export const PDFLIB_URL = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js";
+export const PDFIUM_WASM_URL = "https://cdn.jsdelivr.net/npm/@embedpdf/pdfium@2.15.1/dist/pdfium.wasm";
+// SRI for the .wasm; the JS modules are checked by the import map in redact.html.
+const PDFIUM_WASM_INTEGRITY = "sha384-8x2oOCrgLjVekad372jJmb/CWT9Y1ZhQYXylsxDiyC9oSqWdSr3pCyR4wKg4v636";
 
 // fpdf_annot.h subtypes
 const ANNOT_LINK = 2;
@@ -392,8 +395,8 @@ function countOccurrences(bytes, word) {
 
 /** Load PDFium (EmbedPDF build) and pdf-lib from the CDN and wrap them as a backend. */
 export async function loadPdfiumBackend() {
-  const [{ init, DEFAULT_PDFIUM_WASM_URL }, PDFLib] = await Promise.all([import(PDFIUM_URL), import(PDFLIB_URL)]);
-  const res = await fetch(DEFAULT_PDFIUM_WASM_URL);
+  const [{ init }, PDFLib] = await Promise.all([import(PDFIUM_URL), import(PDFLIB_URL)]);
+  const res = await fetch(PDFIUM_WASM_URL, { integrity: PDFIUM_WASM_INTEGRITY });
   if (!res.ok) throw new Error(`Could not download PDFium (${res.status}).`);
   const P = await init({ wasmBinary: await res.arrayBuffer() });
   return createPdfiumBackend(P, PDFLib);

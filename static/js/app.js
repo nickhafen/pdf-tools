@@ -667,6 +667,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.pdfDocCache[version]) return state.pdfDocCache[version];
     const file = version === "v1" ? state.fileV1 : state.fileV2;
     if (!file || !window.pdfjsLib) return null;
+    await window.pdfWorkerReady;
     const arrayBuffer = await file.arrayBuffer();
     const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     state.pdfDocCache[version] = doc;

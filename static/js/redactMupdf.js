@@ -12,6 +12,9 @@
 import { rectsByPage, METADATA_FIELDS } from "./redactEngine.js";
 
 export const MUPDF_URL = "https://cdn.jsdelivr.net/npm/mupdf@1.28.1/dist/mupdf.js";
+export const MUPDF_WASM_URL = "https://cdn.jsdelivr.net/npm/mupdf@1.28.1/dist/mupdf-wasm.wasm";
+// SRI for the .wasm; the JS modules are checked by the import map in redact.html.
+const MUPDF_WASM_INTEGRITY = "sha384-ThGVLDN2M/kxF2Ztf/jSSuqFpRQQRJg39SHGUGoukIKpGBgmVZZH255Flykzzeij";
 
 function quadBBox(q) {
   return [
@@ -202,5 +205,10 @@ export function createMupdfBackend(mupdf) {
 
 /** Load MuPDF.js from the CDN and wrap it as a backend. */
 export async function loadMupdfBackend() {
+  // mupdf.js reads Emscripten module options from this global at import time;
+  // passing wasmBinary keeps it from fetching the .wasm without an SRI check.
+  const res = await fetch(MUPDF_WASM_URL, { integrity: MUPDF_WASM_INTEGRITY });
+  if (!res.ok) throw new Error(`Could not download MuPDF (${res.status}).`);
+  globalThis.$libmupdf_wasm_Module = { wasmBinary: await res.arrayBuffer() };
   return createMupdfBackend(await import(MUPDF_URL));
 }
