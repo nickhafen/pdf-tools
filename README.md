@@ -12,7 +12,7 @@ Browser-based PDF tools: compare two versions of a PDF as a redline, and permane
 - Client-side text extraction and redline diffing (insertions/deletions highlighted)
 - Independent per-pane document pickers, with swap and reset controls
 - Adjustable text size
-- Export the redline comparison to PDF
+- Export the redline as a PDF, standalone HTML, or plaintext; **Export Redline** uses your default format, and its dropdown lists the rest (prototypes: a formatted redline styled after the revised PDF, and the revised PDF itself marked up with comment annotations)
 - Bundled sample document pairs (contract, NDA, legal memo, lease) for a quick demo, no upload required; **Load Sample** opens the contract, and its dropdown lists the rest
 
 ### Redact (`/redact`)
@@ -71,7 +71,7 @@ The browser libraries are loaded from CDNs at pinned versions, each with a Subre
 | Lucide icons | 1.47.0 | `static/index.html`, `static/redact.html` |
 | MuPDF.js | 1.28.1 | JS modules: import map in `static/redact.html`; `.wasm`: `static/js/redactMupdf.js` |
 | @embedpdf/pdfium | 2.15.1 | JS module: import map in `static/redact.html`; `.wasm`: `static/js/redactPdfium.js` |
-| pdf-lib | 1.17.1 | URL: `static/js/redactPdfium.js`; hash: import map in `static/redact.html` |
+| pdf-lib | 1.17.1 | URL: `static/js/redactPdfium.js` and `static/js/exportPrototypes.js`; hash: import maps in `static/redact.html` and `static/index.html` |
 | Google Fonts | n/a | `static/index.html`, `static/redact.html` (no SRI possible; the CSS varies by browser) |
 
 To compute a hash for a new file:

@@ -21,7 +21,8 @@
   <script type="importmap">
   {
     "integrity": {
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs": "sha384-+0ti2moQlmLN7WZHE2RHIf5lV8hHxhxEalN0il3YZceG26fUPyOkR0hp9daxk1i7"
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs": "sha384-+0ti2moQlmLN7WZHE2RHIf5lV8hHxhxEalN0il3YZceG26fUPyOkR0hp9daxk1i7",
+      "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js": "sha384-zLjz0wyamZ9fUxTFyrzCYwGprnweF4gGevYdGIw/bptum5NQvuZPNHFx/ItkRseg"
     }
   }
   </script>
@@ -123,10 +124,24 @@
         <span>Info</span>
       </button>
 
-      <button class="btn btn-primary hidden" id="btnExportReport" title="Export Redline">
-        <i data-lucide="download"></i>
-        <span>Export Redline</span>
-      </button>
+      <!-- Export: the main button runs the default format; the arrow picks
+           another one (and, unless unchecked, makes it the new default). -->
+      <div class="split-button split-button-primary hidden" id="exportSplitButton">
+        <button class="btn btn-primary split-btn-main" id="btnExportReport">
+          <i data-lucide="download"></i>
+          <span>Export Redline</span>
+        </button>
+        <button class="btn btn-primary split-btn-arrow" id="btnExportDropdownToggle" title="Choose an export format" aria-haspopup="menu" aria-expanded="false">
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <div class="split-dropdown-menu hidden" id="exportDropdownMenu" role="menu">
+          <div class="split-dropdown-list" id="exportDropdownList"></div>
+          <label class="split-dropdown-footer split-dropdown-check">
+            <input type="checkbox" id="exportSetDefault" checked>
+            <span>Make my choice the default</span>
+          </label>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -340,44 +355,6 @@
     <i data-lucide="arrow-up"></i>
   </button>
 
-  <!-- EXPORT MODAL -->
-  <div class="modal-backdrop hidden" id="exportModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3><i data-lucide="share-2"></i> Export Redline Report</h3>
-        <button class="btn-icon" id="btnCloseExportModal"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body">
-        <p>Choose an export format to save or share your comparison report:</p>
-        <div class="export-options-list">
-          <button class="export-opt-btn" id="btnExportHTML">
-            <div class="opt-icon html"><i data-lucide="code"></i></div>
-            <div class="opt-info">
-              <h4>Standalone HTML Redline</h4>
-              <p>Self-contained HTML file with formatted redlines and stats.</p>
-            </div>
-          </button>
-
-          <button class="export-opt-btn" id="btnExportPDF">
-            <div class="opt-icon pdf"><i data-lucide="file-down"></i></div>
-            <div class="opt-info">
-              <h4>Download as PDF</h4>
-              <p>Generates and downloads a formatted PDF of the redline, built entirely in your browser.</p>
-            </div>
-          </button>
-
-          <button class="export-opt-btn" id="btnCopyText">
-            <div class="opt-icon text"><i data-lucide="copy"></i></div>
-            <div class="opt-info">
-              <h4>Copy Plaintext Redline</h4>
-              <p>Copies tracked changes markdown/text to your clipboard.</p>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- STATS MODAL -->
   <div class="modal-backdrop hidden" id="statsModal">
     <div class="modal-card">
@@ -451,6 +428,7 @@
   <script src="static/js/pdfEngine.js"></script>
   <script src="static/js/diffEngine.js"></script>
   <script src="static/js/exportUtil.js"></script>
+  <script src="static/js/exportPrototypes.js"></script>
   <script src="static/js/productSwitcher.js"></script>
   <script src="static/js/app.js"></script>
 

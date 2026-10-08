@@ -488,6 +488,45 @@ body.dark-theme {
   border-radius: 3px;
 }
 
+/* Export split button: primary-coloured, with a lighter divider */
+.split-button-primary .split-btn-arrow {
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.split-button-primary .split-btn-main:hover:not(:disabled),
+.split-button-primary .split-btn-arrow:hover:not(:disabled) {
+  transform: none;
+}
+
+.split-dropdown-item.is-default {
+  color: var(--accent-primary);
+}
+
+.split-dropdown-tag {
+  float: right;
+  margin-left: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.split-dropdown-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.split-dropdown-check input {
+  accent-color: var(--accent-primary);
+  margin: 0;
+}
+
 /* OCR STATUS BADGE */
 .ocr-status-badge {
   display: flex;
@@ -1208,57 +1247,6 @@ del.diff-del {
   gap: 0.5rem;
 }
 
-.export-options-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  margin-top: 1.25rem;
-}
-
-.export-opt-btn {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  padding: 1rem;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s ease;
-}
-
-.export-opt-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-primary);
-  transform: translateY(-2px);
-}
-
-.opt-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFF;
-}
-
-.opt-icon.html { background: #3B82F6; }
-.opt-icon.pdf { background: #EF4444; }
-.opt-icon.text { background: #10B981; }
-
-.opt-info h4 {
-  font-size: 0.95rem;
-  margin-bottom: 0.2rem;
-  color: var(--text-primary);
-}
-
-.opt-info p {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
 /* JUMP TO TOP */
 .jump-top-btn {
   position: fixed;
@@ -1373,4 +1361,17 @@ del.diff-del {
     background: #FEE2E2 !important;
     color: #991B1B !important;
   }
+}
+
+.opt-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
 }

@@ -79,12 +79,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnFontIncrease = document.getElementById("btnFontIncrease");
   const fontSizeLabel = document.getElementById("fontSizeLabel");
 
-  // Export Modal Elements
-  const exportModal = document.getElementById("exportModal");
-  const btnCloseExportModal = document.getElementById("btnCloseExportModal");
-  const btnExportHTML = document.getElementById("btnExportHTML");
-  const btnExportPDF = document.getElementById("btnExportPDF");
-  const btnCopyText = document.getElementById("btnCopyText");
+  // Export Split Button Elements
+  const exportSplitButton = document.getElementById("exportSplitButton");
+  const btnExportDropdownToggle = document.getElementById("btnExportDropdownToggle");
+  const exportDropdownMenu = document.getElementById("exportDropdownMenu");
+  const exportDropdownList = document.getElementById("exportDropdownList");
+  const exportSetDefault = document.getElementById("exportSetDefault");
 
   // Stats & Help Modal Elements
   const statsModal = document.getElementById("statsModal");
@@ -473,7 +473,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnShowStats.classList.add("hidden");
     btnSwapDocs.classList.add("hidden");
     btnNewComparison.classList.add("hidden");
-    btnExportReport.classList.add("hidden");
+    exportSplitButton.classList.add("hidden");
     diffNavigator.classList.add("hidden");
     diffSearchInput.value = "";
 
@@ -499,7 +499,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnShowStats.classList.remove("hidden");
     btnSwapDocs.classList.remove("hidden");
     btnNewComparison.classList.remove("hidden");
-    btnExportReport.classList.remove("hidden");
+    exportSplitButton.classList.remove("hidden");
     diffNavigator.classList.remove("hidden");
 
     if (resetPanes) {
@@ -924,38 +924,139 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================================================
-  // EXPORT MODAL & ACTIONS
+  // EXPORT (split button: the main button runs the default format, the arrow
+  // opens a menu of every format)
   // ==========================================================================
 
-  btnExportReport.addEventListener("click", () => exportModal.classList.remove("hidden"));
-  btnCloseExportModal.addEventListener("click", () => exportModal.classList.add("hidden"));
+  const EXPORT_DEFAULT_KEY = "redline.exportFormat";
+  const FALLBACK_EXPORT_FORMAT = "text-pdf";
 
-  btnExportHTML.addEventListener("click", () => {
-    if (state.comparison) window.exportUtil.exportStandaloneHTML(state.comparison);
-    exportModal.classList.add("hidden");
-  });
-
-  btnExportPDF.addEventListener("click", async () => {
-    exportModal.classList.add("hidden");
-    if (!state.comparison) return;
+  async function runPdfExport(message, build) {
     try {
-      showLoading("Building PDF...");
-      await window.exportUtil.exportRedlinePDF(state.comparison);
+      showLoading(message);
+      await build();
     } catch (err) {
       console.error(err);
       alert("Error generating PDF: " + err.message);
     } finally {
       hideLoading();
     }
+  }
+
+  // Menu order. Formats marked `prototype` live in exportPrototypes.js.
+  const EXPORT_FORMATS = {
+    "text-pdf": {
+      label: "Text-Only Redline (PDF)",
+      desc: "The redline as plain reflowed text, saved as an image. Ignores the original layout.",
+      run: comp => runPdfExport("Building PDF...", () => window.exportUtil.exportRedlinePDF(comp))
+    },
+    "formatted-pdf": {
+      label: "Formatted Redline (PDF)",
+      prototype: true,
+      desc: "Reflowed redline in the revised PDF's page size, font, spacing and page breaks. Selectable text.",
+      run: comp => runPdfExport("Building formatted redline...", () => window.exportUtil.exportFormattedPDF(comp, state.fileV2))
+    },
+    "markup-pdf": {
+      label: "Marked-Up PDF",
+      prototype: true,
+      desc: "The revised PDF itself, with each change as a highlight or caret comment and deletions in margin notes.",
+      run: comp => runPdfExport("Marking up the revised PDF...", () => window.exportUtil.exportMarkupPDF(comp, state.fileV2))
+    },
+    "html": {
+      label: "Standalone HTML Redline",
+      desc: "Self-contained HTML file with formatted redlines and stats.",
+      run: comp => window.exportUtil.exportStandaloneHTML(comp)
+    },
+    "copy-text": {
+      label: "Copy Plaintext Redline",
+      desc: "Copies tracked changes markdown/text to your clipboard.",
+      run: async comp => {
+        await window.exportUtil.copyPlaintextRedline(comp);
+        alert("Plaintext redline copied to clipboard!");
+      }
+    }
+  };
+
+  function getDefaultExportFormat() {
+    try {
+      const saved = localStorage.getItem(EXPORT_DEFAULT_KEY);
+      if (EXPORT_FORMATS[saved]) return saved;
+    } catch { /* storage unavailable */ }
+    return FALLBACK_EXPORT_FORMAT;
+  }
+
+  function updateExportButtonTitle() {
+    btnExportReport.title = `Export as ${EXPORT_FORMATS[getDefaultExportFormat()].label}`;
+  }
+
+  function setDefaultExportFormat(key) {
+    try { localStorage.setItem(EXPORT_DEFAULT_KEY, key); } catch { /* storage unavailable */ }
+    updateExportButtonTitle();
+  }
+
+  function runExport(key) {
+    if (state.comparison) EXPORT_FORMATS[key].run(state.comparison);
+  }
+
+  function closeExportMenu() {
+    exportDropdownMenu.classList.add("hidden");
+    btnExportDropdownToggle.setAttribute("aria-expanded", "false");
+  }
+
+  function openExportMenu() {
+    const current = getDefaultExportFormat();
+    exportDropdownList.innerHTML = "";
+    Object.entries(EXPORT_FORMATS).forEach(([key, fmt]) => {
+      const item = document.createElement("button");
+      item.className = "split-dropdown-item" + (key === current ? " is-default" : "");
+      item.setAttribute("role", "menuitem");
+      if (key === current) {
+        const tag = document.createElement("span");
+        tag.className = "split-dropdown-tag";
+        tag.textContent = "Default";
+        item.appendChild(tag);
+      }
+      item.appendChild(document.createTextNode(fmt.label));
+      if (fmt.prototype) {
+        const badge = document.createElement("span");
+        badge.className = "opt-badge";
+        badge.textContent = "Prototype";
+        item.appendChild(badge);
+      }
+      const desc = document.createElement("span");
+      desc.className = "split-dropdown-item-desc";
+      desc.textContent = fmt.desc;
+      item.appendChild(desc);
+      item.addEventListener("click", () => {
+        closeExportMenu();
+        if (exportSetDefault.checked) setDefaultExportFormat(key);
+        runExport(key);
+      });
+      exportDropdownList.appendChild(item);
+    });
+    exportSetDefault.checked = true; // pre-checked each time the menu opens
+    exportDropdownMenu.classList.remove("hidden");
+    btnExportDropdownToggle.setAttribute("aria-expanded", "true");
+  }
+
+  btnExportReport.addEventListener("click", () => {
+    closeExportMenu();
+    runExport(getDefaultExportFormat());
   });
 
-  btnCopyText.addEventListener("click", async () => {
-    if (state.comparison) {
-      await window.exportUtil.copyPlaintextRedline(state.comparison);
-      alert("Plaintext redline copied to clipboard!");
-    }
-    exportModal.classList.add("hidden");
+  btnExportDropdownToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (exportDropdownMenu.classList.contains("hidden")) openExportMenu();
+    else closeExportMenu();
   });
+
+  document.addEventListener("click", (e) => {
+    if (!exportDropdownMenu.classList.contains("hidden") && !e.target.closest("#exportSplitButton")) {
+      closeExportMenu();
+    }
+  });
+
+  updateExportButtonTitle();
 
   // ==========================================================================
   // STATS MODAL
@@ -977,9 +1078,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === helpModal) helpModal.classList.add("hidden");
   });
 
-  // Esc closes whichever modal is currently open
+  // Esc closes whichever modal or export menu is currently open
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    closeExportMenu();
     document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach(modal => {
       modal.classList.add("hidden");
     });
