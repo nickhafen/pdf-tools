@@ -71,6 +71,66 @@ function rectContainsPoint(r, x, y) {
   return x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3];
 }
 
+function rectsOverlap(a, b) {
+  return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+}
+
+/**
+ * The middle of a character box. Character boxes run from the font's full
+ * ascent to its descent, well past the glyph itself, and engines remove a
+ * glyph only when a box reaches into roughly this part of it.
+ */
+function coreRect(r) {
+  const dx = (r[2] - r[0]) * 0.2;
+  const dy = (r[3] - r[1]) * 0.2;
+  return [r[0] + dx, r[1] + dy, r[2] - dx, r[3] - dy];
+}
+
+/**
+ * Fit a hand-drawn box to the text it touches. Every character whose middle
+ * the box reaches will be removed, so the box grows to cover those
+ * characters in full; it then shrinks away from characters it only grazes,
+ * so they are neither removed nor half covered. Returns { rect, chars }.
+ */
+function fitRect(index, drawn) {
+  const touched = new Set();
+  index.boxes.forEach((b, i) => {
+    if (b && rectsOverlap(drawn, coreRect(b.rect))) touched.add(i);
+  });
+
+  let rect;
+  for (let pass = 0; pass < 10; pass++) {
+    rect = drawn.slice();
+    let need = null; // must stay covered: the middles of the touched characters
+    for (const i of touched) {
+      rect = unionRect(rect, index.boxes[i].rect);
+      need = unionRect(need, coreRect(index.boxes[i].rect));
+    }
+    let grew = false;
+    index.boxes.forEach((b, i) => {
+      if (!b || touched.has(i) || !rectsOverlap(rect, b.rect)) return;
+      // Cut back whichever edge frees this character with the smallest trim.
+      const cuts = [
+        { k: 0, v: b.rect[2], ok: !need || b.rect[2] <= need[0] },
+        { k: 1, v: b.rect[3], ok: !need || b.rect[3] <= need[1] },
+        { k: 2, v: b.rect[0], ok: !need || b.rect[0] >= need[2] },
+        { k: 3, v: b.rect[1], ok: !need || b.rect[1] >= need[3] },
+      ].filter(c => c.ok && (c.k < 2 ? c.v < rect[c.k + 2] : c.v > rect[c.k - 2]));
+      if (!cuts.length) {
+        // Can't free it without uncovering touched text: take it in as well.
+        touched.add(i);
+        grew = true;
+        return;
+      }
+      const best = cuts.reduce((a, c) => (Math.abs(c.v - rect[c.k]) < Math.abs(a.v - rect[a.k]) ? c : a));
+      rect[best.k] = best.v;
+    });
+    if (!grew) break;
+  }
+  const chars = [...touched].sort((a, b) => a - b);
+  return { rect, chars };
+}
+
 /**
  * Convert a [start, end) character range into one rectangle per text line.
  *
@@ -135,11 +195,29 @@ export function createRedactEngine(backend) {
       this.doc = backend.openDoc(this.bytes);
       this.pageCount = this.doc.pageCount;
       this._indexes = [];
+      this._lines = [];
     }
 
     _index(i) {
       if (!this._indexes[i]) this._indexes[i] = this.doc.indexPage(i);
       return this._indexes[i];
+    }
+
+    /** The page's text lines: [{ rect, chars }], chars being indexes in reading order. */
+    _lineList(p) {
+      if (!this._lines[p]) {
+        const index = this._index(p);
+        const lines = new Map();
+        index.boxes.forEach((b, i) => {
+          if (!b) return;
+          if (!lines.has(b.line)) lines.set(b.line, { rect: null, chars: [] });
+          const line = lines.get(b.line);
+          line.rect = unionRect(line.rect, b.rect);
+          line.chars.push(i);
+        });
+        this._lines[p] = [...lines.values()];
+      }
+      return this._lines[p];
     }
 
     pageBounds(i) {
@@ -178,7 +256,60 @@ export function createRedactEngine(backend) {
       return results;
     }
 
-    /** Text currently under a rectangle (for labelling hand-drawn boxes). */
+    /**
+     * Text cursor position (an offset into the page text) for a point, as
+     * when selecting text. With `onText`, returns -1 unless the point is on
+     * a character; otherwise it snaps to the nearest line.
+     */
+    caretAt(p, x, y, { onText = false } = {}) {
+      const index = this._index(p);
+      let best = null;
+      let bestScore = Infinity;
+      for (const line of this._lineList(p)) {
+        const [x0, y0, x1, y1] = line.rect;
+        const dx = x < x0 ? x0 - x : x > x1 ? x - x1 : 0;
+        const dy = y < y0 ? y0 - y : y > y1 ? y - y1 : 0;
+        if (onText && !line.chars.some(i => {
+          const r = index.boxes[i].rect;
+          return rectContainsPoint([r[0] - 1, r[1], r[2] + 1, r[3]], x, y);
+        })) continue;
+        const score = dy * 4 + dx + Math.abs(y - (y0 + y1) / 2) * 0.01;
+        if (score < bestScore) {
+          best = line;
+          bestScore = score;
+        }
+      }
+      if (!best) return -1;
+      for (const i of best.chars) {
+        const r = index.boxes[i].rect;
+        if (x < (r[0] + r[2]) / 2) return i;
+      }
+      return best.chars[best.chars.length - 1] + 1;
+    }
+
+    /** The text between two caret positions, and one mark rectangle per line. */
+    selection(p, a, b) {
+      const index = this._index(p);
+      let start = Math.min(a, b);
+      let end = Math.max(a, b);
+      while (start < end && /\s/.test(index.text[start])) start++;
+      while (end > start && /\s/.test(index.text[end - 1])) end--;
+      if (start === end) return { text: "", rects: [] };
+      return { text: index.text.slice(start, end), rects: rangeToRects(index, start, end) };
+    }
+
+    /** Fit a hand-drawn box to the text it touches (see fitRect). Returns { rect, text }. */
+    fitBox(p, rect) {
+      const index = this._index(p);
+      const { rect: fitted, chars } = fitRect(index, rect);
+      // Fall back to the box as drawn if trimming squeezed it to nothing.
+      const usable = fitted[2] - fitted[0] > 0.5 && fitted[3] - fitted[1] > 0.5;
+      // Separate runs that aren't contiguous in the text, e.g. parts of two lines.
+      const text = chars.map((i, k) => (k && i !== chars[k - 1] + 1 ? " " : "") + index.text[i]).join("");
+      return { rect: usable ? fitted : rect, text: text.trim() };
+    }
+
+    /** Text currently under a rectangle (centres inside it). */
     textInRect(p, rect) {
       const index = this._index(p);
       let out = "";

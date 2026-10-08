@@ -303,65 +303,119 @@ function renderPageImage(session, p, frame) {
 }
 
 // ==========================================================================
-// DRAWING BOXES
+// SELECTING TEXT & DRAWING BOXES
 // ==========================================================================
 
+/**
+ * Dragging that starts on text selects it, as in a PDF reader, and marks
+ * one box per line fitted to the selection. Dragging anywhere else, or
+ * with Shift held, draws a box, which is then fitted to the text it touches.
+ */
 function attachDrawing(overlay, page, bounds) {
-  let start = null;
-  let box = null;
+  let drag = null; // { mode: "text", anchor, selection, els } | { mode: "box", start, el }
+  const w = bounds[2] - bounds[0];
+  const h = bounds[3] - bounds[1];
 
   const toPage = e => {
     const r = overlay.getBoundingClientRect();
     const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     const fy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
-    return { fx, fy, px: e.clientX - r.left, py: e.clientY - r.top };
+    return { fx, fy, px: e.clientX - r.left, py: e.clientY - r.top, x: bounds[0] + fx * w, y: bounds[1] + fy * h };
   };
+
+  const caretOnText = (e, pt) => (e.shiftKey ? -1 : state.session.caretAt(page, pt.x, pt.y, { onText: true }));
 
   overlay.addEventListener("pointerdown", e => {
     if (e.button !== 0 || e.target.closest(".mark-rect")) return;
     overlay.setPointerCapture(e.pointerId);
-    start = toPage(e);
-    box = document.createElement("div");
-    box.className = "draw-rect";
-    overlay.appendChild(box);
+    const pt = toPage(e);
+    const caret = caretOnText(e, pt);
+    if (caret >= 0) {
+      drag = { mode: "text", anchor: caret, selection: null, els: [] };
+    } else {
+      const el = document.createElement("div");
+      el.className = "draw-rect";
+      overlay.appendChild(el);
+      drag = { mode: "box", start: pt, el };
+    }
     e.preventDefault();
   });
 
   overlay.addEventListener("pointermove", e => {
-    if (!start) return;
     const cur = toPage(e);
-    Object.assign(box.style, {
-      left: `${Math.min(start.fx, cur.fx) * 100}%`,
-      top: `${Math.min(start.fy, cur.fy) * 100}%`,
-      width: `${Math.abs(cur.fx - start.fx) * 100}%`,
-      height: `${Math.abs(cur.fy - start.fy) * 100}%`,
+    if (!drag) {
+      overlay.classList.toggle("over-text", !e.target.closest(".mark-rect") && caretOnText(e, cur) >= 0);
+      return;
+    }
+    if (drag.mode === "box") {
+      const { start, el } = drag;
+      Object.assign(el.style, {
+        left: `${Math.min(start.fx, cur.fx) * 100}%`,
+        top: `${Math.min(start.fy, cur.fy) * 100}%`,
+        width: `${Math.abs(cur.fx - start.fx) * 100}%`,
+        height: `${Math.abs(cur.fy - start.fy) * 100}%`,
+      });
+      return;
+    }
+    const focus = state.session.caretAt(page, cur.x, cur.y);
+    drag.selection = state.session.selection(page, drag.anchor, focus);
+    drag.els.forEach(el => el.remove());
+    drag.els = drag.selection.rects.map(r => {
+      const el = document.createElement("div");
+      el.className = "select-rect";
+      placeRect(el, r, bounds);
+      overlay.appendChild(el);
+      return el;
     });
   });
 
   const finish = e => {
-    if (!start) return;
+    if (!drag) return;
     const cur = toPage(e);
-    const big = Math.abs(cur.px - start.px) > 4 && Math.abs(cur.py - start.py) > 4;
-    box.remove();
-    if (big && e.type === "pointerup") {
-      const w = bounds[2] - bounds[0];
-      const h = bounds[3] - bounds[1];
-      const rect = [
-        bounds[0] + Math.min(start.fx, cur.fx) * w,
-        bounds[1] + Math.min(start.fy, cur.fy) * h,
-        bounds[0] + Math.max(start.fx, cur.fx) * w,
-        bounds[1] + Math.max(start.fy, cur.fy) * h,
-      ];
-      const text = state.session.textInRect(page, rect);
-      const id = addMark({ page, rects: [rect], groupId: null, label: text ? `“${truncate(text, 40)}”` : "Drawn area" });
+    let mark = null;
+    if (drag.mode === "box") {
+      drag.el.remove();
+      const { start } = drag;
+      const big = Math.abs(cur.px - start.px) > 4 && Math.abs(cur.py - start.py) > 4;
+      if (big && e.type === "pointerup") {
+        const drawn = [
+          bounds[0] + Math.min(start.fx, cur.fx) * w,
+          bounds[1] + Math.min(start.fy, cur.fy) * h,
+          bounds[0] + Math.max(start.fx, cur.fx) * w,
+          bounds[1] + Math.max(start.fy, cur.fy) * h,
+        ];
+        const { rect, text } = state.session.fitBox(page, drawn);
+        mark = { rects: [rect], label: text ? `“${truncate(text, 40)}”` : "Drawn area" };
+      }
+    } else {
+      drag.els.forEach(el => el.remove());
+      const sel = drag.selection;
+      if (sel && sel.rects.length && e.type === "pointerup") {
+        mark = { rects: sel.rects, label: `“${truncate(sel.text, 40)}”` };
+      }
+    }
+    drag = null;
+    if (mark) {
+      const id = addMark({ page, rects: mark.rects, groupId: null, label: mark.label });
       state.history.push({ type: "add", ids: [id] });
       refreshMarks();
     }
-    start = null;
-    box = null;
   };
   overlay.addEventListener("pointerup", finish);
   overlay.addEventListener("pointercancel", finish);
+}
+
+/** Position an overlay element over a rectangle given in page coordinates. */
+function placeRect(el, r, bounds) {
+  const [bx0, by0, bx1, by1] = bounds;
+  const w = bx1 - bx0;
+  const h = by1 - by0;
+  Object.assign(el.style, {
+    left: `${((r[0] - bx0) / w) * 100}%`,
+    top: `${((r[1] - by0) / h) * 100}%`,
+    width: `${((r[2] - r[0]) / w) * 100}%`,
+    height: `${((r[3] - r[1]) / h) * 100}%`,
+  });
 }
 
 // ==========================================================================
@@ -486,20 +540,12 @@ function refreshMarks() {
   for (const mark of state.marks) {
     const view = state.pageViews[mark.page];
     if (!view) continue;
-    const [bx0, by0, bx1, by1] = view.bounds;
-    const w = bx1 - bx0;
-    const h = by1 - by0;
     for (const r of mark.rects) {
       const el = document.createElement("div");
       el.className = "mark-rect";
       el.dataset.markId = mark.id;
       el.title = "Click to remove this mark";
-      Object.assign(el.style, {
-        left: `${((r[0] - bx0) / w) * 100}%`,
-        top: `${((r[1] - by0) / h) * 100}%`,
-        width: `${((r[2] - r[0]) / w) * 100}%`,
-        height: `${((r[3] - r[1]) / h) * 100}%`,
-      });
+      placeRect(el, r, view.bounds);
       el.addEventListener("click", () => removeMarks([mark.id]));
       view.overlay.appendChild(el);
     }

@@ -18,7 +18,7 @@ Browser-based PDF tools: compare two versions of a PDF as a redline, and permane
 ### Redact (`/redact`)
 
 - True redaction: marked text is deleted from the PDF's content streams, image pixels under a box are blanked, and covered vector art is removed (not just covered with a black box)
-- Mark by search (plain text or regex, with presets for SSNs, emails, phone and card numbers) or by drawing boxes; click a mark to drop it, Ctrl+Z to undo
+- Mark by search (plain text or regex, with presets for SSNs, emails, phone and card numbers), by selecting text on the page as in a PDF reader, or by drawing boxes (a box that cuts through text grows to cover every character it touches); click a mark to drop it, Ctrl+Z to undo
 - Comments, stamps, and form fields are flattened first so their text can be found and redacted; redaction marks left unapplied by other tools are detected and applied
 - Strips metadata, attachments, JavaScript, bookmarks, thumbnails, and earlier saved revisions
 - After applying, the output is re-opened and checked for any leftover marked text before download
