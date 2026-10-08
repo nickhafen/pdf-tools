@@ -93,6 +93,7 @@ Run through this monthly, and whenever a security advisory lands for one of the 
   - [ ] Recompute and replace the SRI hash for every file of that library, including `.wasm` files and the PDF.js worker.
   - [ ] For MuPDF and PDFium, load the Redact page with each engine and check the browser's network tab for CDN files that aren't in the import map (a release can rename or add internal modules).
   - [ ] For Lucide, confirm every icon still renders; a renamed icon silently renders nothing.
+  - [ ] For PDF.js, skip 5.6.83 through 6.2.107 (CVE-2026-16633, arbitrary JavaScript execution); go to 6.2.108 or later. From 5.0 on, the JPEG 2000, JBIG2, and ICC color decoders are separate `.wasm` files that PDF.js fetches itself (the `wasmUrl` option), so they can't carry SRI; serve them from this repo or leave them out (text extraction still works, but some images won't draw in the PDF Canvas view). 6.x needs Chrome 125+ or Safari 18+.
   - [ ] Update the version in `THIRD_PARTY_NOTICES.md` and re-check the license.
   - [ ] Test: run a Compare on a sample pair, export the redline PDF, and redact a document with both engines (plus **Cross-check**). Watch the console for integrity errors.
 - [ ] **GitHub Actions.** Check `.github/workflows/pages.yml` for new major versions of the `actions/*` steps.
