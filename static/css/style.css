@@ -584,6 +584,33 @@ body.dark-theme {
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
+/* ON/OFF TOGGLE BUTTON (e.g. Sync Scroll) */
+.toolbar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: calc(0.45rem + 4px) 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbar-toggle:hover {
+  color: var(--text-primary);
+}
+
+.toolbar-toggle[aria-pressed="true"] {
+  color: var(--text-primary);
+  font-weight: 600;
+  border-color: var(--accent-primary);
+  background: rgba(59, 130, 246, 0.12);
+}
+
 /* DIFF NAVIGATOR TOOLBAR */
 .diff-navigator {
   display: flex;
@@ -994,9 +1021,12 @@ del.diff-del {
 .side-by-side-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 1.25rem;
-  flex: 1;
-  height: 720px;
+  /* Fixed to the viewport (not flex-grown to fit content) so each pane
+     scrolls inside itself instead of the whole page scrolling both. */
+  flex: none;
+  height: max(480px, calc(100vh - 190px));
 }
 
 /* Single View: only the right pane is shown, full width */

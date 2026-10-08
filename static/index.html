@@ -133,15 +133,21 @@
   <!-- STICKY TOP MENU: ROW 2 (view controls, shown once a comparison exists) -->
   <section class="app-toolbar hidden" id="appToolbar">
     <div class="segmented-control" id="viewModeControl">
-      <button class="segment-btn active" data-view="single">
+      <button class="segment-btn" data-view="single">
         <i data-lucide="file-text"></i>
         <span>Single View</span>
       </button>
-      <button class="segment-btn" data-view="double">
+      <button class="segment-btn active" data-view="double">
         <i data-lucide="columns-2"></i>
         <span>Compare Side-by-Side</span>
       </button>
     </div>
+
+    <!-- SCROLL SYNC (side-by-side only): off = each pane scrolls on its own -->
+    <button class="toolbar-toggle" id="btnSyncScroll" aria-pressed="false" title="Scroll both text panes together">
+      <i data-lucide="link"></i>
+      <span>Sync Scroll</span>
+    </button>
 
     <!-- DIFF NAVIGATOR & SEARCH -->
     <div class="diff-navigator hidden" id="diffNavigator">
@@ -257,7 +263,7 @@
          In Single View the left pane is hidden and the right pane goes
          full width; in Compare Side-by-Side both are shown. -->
     <section class="results-section hidden" id="resultsSection">
-      <div class="side-by-side-grid single-mode" id="paneGrid">
+      <div class="side-by-side-grid" id="paneGrid">
 
         <!-- LEFT PANE (hidden in Single View) -->
         <div class="document-container side-pane" id="paneLeft" data-pane="left">
@@ -421,7 +427,7 @@
       <div class="modal-body">
         <div class="help-section">
           <h4><i data-lucide="mouse-pointer-click"></i> How to use it</h4>
-          <p>Upload an original PDF (v1) and a revised PDF (v2), or click <strong>Load Sample</strong> to try it with example contracts. Click <strong>Generate Redline Comparison</strong> to see tracked changes. Each pane can independently show the <strong>Original (v1)</strong>, <strong>Revised (v2)</strong>, or <strong>Redline</strong>, displayed as <strong>Formatted</strong> text, <strong>Plain Text</strong>, or the actual <strong>PDF Canvas</strong>. Start in <strong>Single View</strong> (redline, full width) or switch to <strong>Compare Side-by-Side</strong> for two independent panes. Use <strong>Swap v1/v2</strong> to flip which document is which, and <strong>Reset</strong> to start over. Use the change navigator (&lt; / &gt;, or Shift+J / Shift+K) to jump between edits — active whenever at least one visible pane shows the Redline — and the search box to filter by keyword. Press <strong>Esc</strong> to close any open dialog.</p>
+          <p>Upload an original PDF (v1) and a revised PDF (v2), or click <strong>Load Sample</strong> to try it with example contracts. Click <strong>Generate Redline Comparison</strong> to see tracked changes. Each pane can independently show the <strong>Original (v1)</strong>, <strong>Revised (v2)</strong>, or <strong>Redline</strong>, displayed as <strong>Formatted</strong> text, <strong>Plain Text</strong>, or the actual <strong>PDF Canvas</strong>. Results open in <strong>Compare Side-by-Side</strong> (original on the left, redline on the right); switch to <strong>Single View</strong> for the redline alone at full width. Each pane scrolls on its own; turn on <strong>Sync Scroll</strong> to scroll two text panes together, lined up by matching section headings. Use <strong>Swap v1/v2</strong> to flip which document is which, and <strong>Reset</strong> to start over. Use the change navigator (&lt; / &gt;, or Shift+J / Shift+K) to jump between edits — active whenever at least one visible pane shows the Redline — and the search box to filter by keyword. Press <strong>Esc</strong> to close any open dialog.</p>
         </div>
         <div class="help-section">
           <h4><i data-lucide="lock"></i> Privacy</h4>

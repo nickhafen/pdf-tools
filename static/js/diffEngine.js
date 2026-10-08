@@ -164,8 +164,12 @@ class DiffEngine {
         return `<div class="plain-pagebreak">— Page Break —</div>`;
       }
 
+      // Headings get no special styling here, but keep a class on them so
+      // side-by-side Sync Scroll can line panes up by section.
+      const isHeading = /^##\s?/.test(plainText);
       const stripped = line.replace(/^(\s*(?:<[^>]+>)*\s*)##\s?/, "$1");
-      return stripped.trim() ? `<div class="plain-line">${stripped}</div>` : `<div class="plain-line">&nbsp;</div>`;
+      const cls = isHeading ? "plain-line plain-heading" : "plain-line";
+      return stripped.trim() ? `<div class="${cls}">${stripped}</div>` : `<div class="plain-line">&nbsp;</div>`;
     }).join('');
   }
 

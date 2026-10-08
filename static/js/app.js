@@ -13,9 +13,11 @@ document.addEventListener("DOMContentLoaded", () => {
     currentDiffIndex: 0,
     filteredDiffNodes: [],
     fontScale: 0.9,
+    syncScroll: false, // side-by-side text panes scroll independently unless toggled on
     // Each pane is independently configurable: what to show (v1 / v2 /
-    // redline) and how (formatted text / plain text / PDF canvas). In
-    // Single View only the right pane is shown, full width.
+    // redline) and how (formatted text / plain text / PDF canvas). Results
+    // open in Compare Side-by-Side; in Single View only the right pane is
+    // shown, full width.
     panes: {
       left: { content: "v1", display: "formatted", page: 1 },
       right: { content: "redline", display: "formatted", page: 1 }
@@ -63,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const diffNavigator = document.getElementById("diffNavigator");
 
   const viewModeControl = document.getElementById("viewModeControl");
+  const btnSyncScroll = document.getElementById("btnSyncScroll");
   const paneGrid = document.getElementById("paneGrid");
   const contentLeft = document.getElementById("content-left");
   const contentRight = document.getElementById("content-right");
@@ -510,9 +513,10 @@ document.addEventListener("DOMContentLoaded", () => {
       updatePaneOptionAvailability("left");
       updatePaneOptionAvailability("right");
 
-      paneGrid.classList.add("single-mode");
+      paneGrid.classList.remove("single-mode");
       viewModeControl.querySelectorAll(".segment-btn").forEach(b => b.classList.remove("active"));
-      viewModeControl.querySelector('[data-view="single"]').classList.add("active");
+      viewModeControl.querySelector('[data-view="double"]').classList.add("active");
+      updateSyncToggleVisibility();
     }
 
     // Render Panes (each independently configurable)
@@ -535,30 +539,121 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==========================================================================
-  // SYNCHRONIZED SCROLLING
+  // SYNCHRONIZED SCROLLING (Sync Scroll toggle, side-by-side text panes)
   // ==========================================================================
+  //
+  // Panes are lined up by section heading rather than by percentage of
+  // length: headings both panes share become anchor points, and between two
+  // anchors each pane sits the same fraction of the way along. A long section
+  // added in one version therefore doesn't pull the other pane out of step for
+  // the rest of the document. With no shared headings this falls back to
+  // plain percentage sync (the only anchors are the top and bottom).
+
+  let syncHeadingPairs = null; // [[leftHeadingEl, rightHeadingEl], ...]; null = rebuild on next use
+  let syncSuppressedUntil = 0; // performance.now() timestamp
+  const ignoreNextScroll = new Set(); // panes whose next scroll event is our own write
 
   function setupSynchronizedScroll() {
-    let isSyncingLeft = false;
-    let isSyncingRight = false;
+    syncHeadingPairs = null;
+    ignoreNextScroll.clear();
+    contentLeft.onscroll = () => syncScrollFrom(contentLeft, contentRight);
+    contentRight.onscroll = () => syncScrollFrom(contentRight, contentLeft);
+  }
 
-    contentLeft.onscroll = () => {
-      if (!isSyncingLeft) {
-        isSyncingRight = true;
-        const percentage = contentLeft.scrollTop / (contentLeft.scrollHeight - contentLeft.clientHeight || 1);
-        contentRight.scrollTop = percentage * (contentRight.scrollHeight - contentRight.clientHeight);
-      }
-      isSyncingLeft = false;
-    };
+  function isScrollSyncActive() {
+    return state.syncScroll
+      && !paneGrid.classList.contains("single-mode")
+      && state.panes.left.display !== "pdf"
+      && state.panes.right.display !== "pdf";
+  }
 
-    contentRight.onscroll = () => {
-      if (!isSyncingRight) {
-        isSyncingLeft = true;
-        const percentage = contentRight.scrollTop / (contentRight.scrollHeight - contentRight.clientHeight || 1);
-        contentLeft.scrollTop = percentage * (contentLeft.scrollHeight - contentLeft.clientHeight);
+  function syncScrollFrom(src, tgt) {
+    if (ignoreNextScroll.delete(src)) return; // echo of our own write: don't bounce it back
+    if (!isScrollSyncActive() || performance.now() < syncSuppressedUntil) return;
+
+    const target = mapScrollPosition(src, tgt);
+    const before = tgt.scrollTop;
+    if (Math.abs(before - target) < 1) return;
+    ignoreNextScroll.add(tgt);
+    tgt.scrollTop = target;
+    // If the write was clamped/rounded to no change, no scroll event will come to clear the flag.
+    if (tgt.scrollTop === before) ignoreNextScroll.delete(tgt);
+  }
+
+  function mapScrollPosition(src, tgt) {
+    const srcMax = src.scrollHeight - src.clientHeight;
+    const tgtMax = tgt.scrollHeight - tgt.clientHeight;
+    if (srcMax <= 0 || tgtMax <= 0) return 0;
+
+    if (!syncHeadingPairs) syncHeadingPairs = matchHeadings();
+    const srcIdx = src === contentLeft ? 0 : 1;
+
+    // Anchors are [srcPos, tgtPos], kept strictly increasing on both sides
+    // (and within scroll range) so the mapping never runs backwards and
+    // maps the same way in either direction.
+    const anchors = [[0, 0]];
+    for (const pair of syncHeadingPairs) {
+      const s = offsetWithin(pair[srcIdx], src);
+      const t = offsetWithin(pair[1 - srcIdx], tgt);
+      const [lastS, lastT] = anchors[anchors.length - 1];
+      if (s > lastS && t > lastT && s < srcMax && t < tgtMax) anchors.push([s, t]);
+    }
+    anchors.push([srcMax, tgtMax]);
+
+    const pos = src.scrollTop;
+    let i = 0;
+    while (i < anchors.length - 2 && pos >= anchors[i + 1][0]) i++;
+    const [s0, t0] = anchors[i];
+    const [s1, t1] = anchors[i + 1];
+    const frac = s1 > s0 ? (pos - s0) / (s1 - s0) : 0;
+    return Math.min(tgtMax, Math.max(0, t0 + frac * (t1 - t0)));
+  }
+
+  // Position of el's top within container's scrollable content.
+  function offsetWithin(el, container) {
+    return el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+  }
+
+  // Pair up the headings both panes share, in document order (longest common
+  // subsequence), so a heading added, deleted or reworded in one version is
+  // skipped rather than knocking every later pair out of line.
+  function matchHeadings() {
+    const left = headingKeys("left");
+    const right = headingKeys("right");
+    const n = left.length, m = right.length;
+    const same = (i, j) => left[i].key !== "" && left[i].key === right[j].key;
+
+    const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        lcs[i][j] = same(i, j) ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
       }
-      isSyncingRight = false;
-    };
+    }
+
+    const pairs = [];
+    for (let i = 0, j = 0; i < n && j < m;) {
+      if (same(i, j)) { pairs.push([left[i].el, right[j].el]); i++; j++; }
+      else if (lcs[i + 1][j] >= lcs[i][j + 1]) i++;
+      else j++;
+    }
+    return pairs;
+  }
+
+  // A pane's headings as comparable text keys. A Redline heading carries
+  // both versions' wording, so it is read in whichever version the other
+  // pane shows: against v1, insertions are dropped; otherwise deletions are.
+  function headingKeys(side) {
+    const other = side === "left" ? "right" : "left";
+    const content = state.panes[side].content;
+    const version = content !== "redline" ? content
+      : state.panes[other].content === "v1" ? "v1" : "v2";
+    const container = side === "left" ? contentLeft : contentRight;
+
+    return [...container.querySelectorAll(".redline-heading, .plain-heading")].map(el => {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll(version === "v1" ? "ins" : "del").forEach(n => n.remove());
+      return { el, key: clone.textContent.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase() };
+    });
   }
 
   // ==========================================================================
@@ -573,7 +668,23 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.classList.add("active");
 
     paneGrid.classList.toggle("single-mode", btn.dataset.view === "single");
+    updateSyncToggleVisibility();
     updateDiffNavGating();
+  });
+
+  // Sync Scroll only applies with two panes on screen.
+  function updateSyncToggleVisibility() {
+    btnSyncScroll.classList.toggle("hidden", paneGrid.classList.contains("single-mode"));
+  }
+
+  btnSyncScroll.addEventListener("click", () => {
+    state.syncScroll = !state.syncScroll;
+    btnSyncScroll.setAttribute("aria-pressed", String(state.syncScroll));
+    // Line the right pane up with the left one right away.
+    if (isScrollSyncActive()) {
+      ignoreNextScroll.clear();
+      syncScrollFrom(contentLeft, contentRight);
+    }
   });
 
   // ==========================================================================
@@ -632,6 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderPane(side) {
     const config = state.panes[side];
+    syncHeadingPairs = null; // pane content changed: re-pair headings for Sync Scroll
     const paneEl = document.querySelector(`.side-pane[data-pane="${side}"]`);
     const textEl = document.getElementById(`content-${side}`);
     const canvasWrapper = paneEl.querySelector(".pane-canvas-wrapper");
@@ -762,6 +874,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // The same diff-id can appear in more than one pane at once (e.g. both
     // panes showing Redline), so glow/scroll every match, not just one.
+    const scrolled = new Set();
     targetNodeData.ids.forEach(diffId => {
       document.querySelectorAll(`[data-diff-id="${diffId}"]`).forEach(el => {
         el.classList.add("active-diff-glow");
@@ -769,9 +882,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (container) {
           const offsetTop = el.offsetTop - container.offsetTop - 80;
           container.scrollTo({ top: Math.max(0, offsetTop), behavior: "smooth" });
+          scrolled.add(container);
         }
       });
     });
+    // Both panes are already heading to the change; Sync Scroll would only
+    // interrupt their smooth scrolls by dragging each toward the other.
+    if (scrolled.size > 1) syncSuppressedUntil = performance.now() + 1500;
   }
 
   // Keyboard Shortcuts (Shift+J / Shift+K)
