@@ -14,25 +14,31 @@
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@1.47.0/dist/umd/lucide.min.js" integrity="sha384-v15JX+vZHMR3T6LQR9N6e6wIKrKOdNTbdj8j+e5irqq3L9gCauJz2vGlUzomWyUp" crossorigin="anonymous"></script>
 
-  <!-- PDF.js CDN (Client-side fallback) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
-  <script>
-    // Worker URLs can't carry an integrity attribute, so fetch the worker with
-    // SRI and hand PDF.js a same-origin blob URL. Await window.pdfWorkerReady
-    // before calling pdfjsLib.getDocument().
-    if (window['pdfjs-dist/build/pdf']) {
-      window.pdfWorkerReady = fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js', {
-        integrity: 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2'
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`Could not download the PDF.js worker (${res.status}).`);
-          return res.blob();
-        })
-        .then(blob => {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
-        });
-      window.pdfWorkerReady.catch(() => {});
+  <!-- PDF.js (ES module). The import map pins its SRI hash; the worker URL
+       can't carry an integrity attribute, so it is fetched with SRI and handed
+       to PDF.js as a same-origin blob URL. Await window.pdfjsReady to get the
+       library. -->
+  <script type="importmap">
+  {
+    "integrity": {
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs": "sha384-+0ti2moQlmLN7WZHE2RHIf5lV8hHxhxEalN0il3YZceG26fUPyOkR0hp9daxk1i7"
     }
+  }
+  </script>
+  <script>
+    window.pdfjsReady = Promise.all([
+      import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs'),
+      fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs', {
+        integrity: 'sha384-ToeVvShCxKc6CEvhHeMt0Q8A06pSPDbAlngO9nokrDmh914gk/pYd0N7D0a4Lz2o'
+      }).then(res => {
+        if (!res.ok) throw new Error(`Could not download the PDF.js worker (${res.status}).`);
+        return res.blob();
+      })
+    ]).then(([pdfjsLib, workerBlob]) => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
+      return pdfjsLib;
+    });
+    window.pdfjsReady.catch(() => {});
   </script>
 
   <!-- Local diff-match-patch library -->

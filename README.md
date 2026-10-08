@@ -65,7 +65,7 @@ The browser libraries are loaded from CDNs at pinned versions, each with a Subre
 
 | Library | Version | URL and hash live in |
 |---|---|---|
-| PDF.js + worker | 3.11.174 | `static/index.html` (worker is fetched with SRI in the inline script) |
+| PDF.js + worker | 4.10.38 | `static/index.html` (module hash in the import map; worker fetched with SRI in the inline script) |
 | html2canvas | 1.4.1 | `static/index.html` |
 | jsPDF | 2.5.1 | `static/index.html` |
 | Lucide icons | 1.47.0 | `static/index.html`, `static/redact.html` |
@@ -99,7 +99,7 @@ Run through this monthly, and whenever a security advisory lands for one of the 
 - [ ] **Python packages** (local server only). `requirements.txt` uses minimum versions; run `pip install -U -r requirements.txt` and confirm `python main.py` still serves both tools.
 - [ ] **Live site.** After the deploy finishes, open both tools on the live site and check the console for errors.
 
-Import-map integrity (the JS modules of the redaction engines) is enforced in Chrome/Edge 127+, Firefox 138+, and Safari 18+. Older browsers still load those modules, just without the hash check; the `.wasm` files are checked in every browser.
+Import-map integrity (PDF.js and the JS modules of the redaction engines) is enforced in Chrome/Edge 127+, Firefox 138+, and Safari 18+. Older browsers still load those modules, just without the hash check; the PDF.js worker and the `.wasm` files are checked in every browser. PDF.js 4.x itself needs a recent browser (roughly Chrome 119+, Firefox 121+, Safari 17.4+); older ones would need its `legacy/` build.
 
 ## License
 

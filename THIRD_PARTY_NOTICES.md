@@ -23,7 +23,7 @@ This project's own files remain under the MIT License. The **PDFium** engine pat
 
 | Component | Version | License | Source |
 |---|---|---|---|
-| PDF.js (Mozilla) | 3.11.174 | Apache License 2.0 | https://github.com/mozilla/pdf.js |
+| PDF.js (Mozilla) | 4.10.38 | Apache License 2.0 | https://github.com/mozilla/pdf.js |
 | diff-match-patch (Google), vendored in `static/js/diff_match_patch.js` | n/a | Apache License 2.0 | https://github.com/google/diff-match-patch |
 | html2canvas | 1.4.1 | MIT | https://github.com/niklasvh/html2canvas |
 | jsPDF | 2.5.1 | MIT | https://github.com/parallax/jsPDF |

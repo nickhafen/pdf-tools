@@ -666,10 +666,11 @@ document.addEventListener("DOMContentLoaded", () => {
   async function getOrLoadPdfDoc(version) {
     if (state.pdfDocCache[version]) return state.pdfDocCache[version];
     const file = version === "v1" ? state.fileV1 : state.fileV2;
-    if (!file || !window.pdfjsLib) return null;
-    await window.pdfWorkerReady;
+    if (!file) return null;
+    const pdfjsLib = await window.pdfjsReady.catch(() => null);
+    if (!pdfjsLib) return null;
     const arrayBuffer = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const doc = await pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false }).promise;
     state.pdfDocCache[version] = doc;
     return doc;
   }

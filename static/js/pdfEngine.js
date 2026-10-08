@@ -10,13 +10,13 @@ class PDFEngine {
    * @returns {Promise<Object>} Extracted document object
    */
   async extractText(file) {
-    if (!window.pdfjsLib) {
+    const pdfjsLib = await window.pdfjsReady.catch(() => null);
+    if (!pdfjsLib) {
       throw new Error("PDF.js library is not loaded");
     }
 
-    await window.pdfWorkerReady;
     const arrayBuffer = await file.arrayBuffer();
-    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer, isEvalSupported: false }).promise;
 
     const rawPages = [];
     for (let i = 1; i <= pdfDoc.numPages; i++) {
