@@ -62,6 +62,7 @@
 }
 
 .engine-status.error { color: var(--del-text); }
+.engine-status:empty { display: none; }
 
 /* WORKSPACE */
 .redact-workspace {

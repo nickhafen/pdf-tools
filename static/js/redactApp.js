@@ -75,7 +75,7 @@ async function activateEngine(name) {
     const engine = await getEngine(name);
     if (state.engineName !== name) return engine; // switched again meanwhile
     state.engine = engine;
-    status.textContent = `${ENGINES[name].label} engine ready (${ENGINES[name].license}). Your file stays on this device.`;
+    status.textContent = ""; // only loading progress and errors are shown
     return engine;
   } catch (err) {
     console.error(err);
